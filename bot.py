@@ -177,18 +177,20 @@ async def edit_recipe_callback(update, context):
 
 async def edit_recipe_name(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     recipe_ID = query.data.replace(txt_edit_name, '')
     await update.callback_query.message.reply_text("מהו השם המעודכן?", reply_markup = InlineKeyboardMarkup([[cancel_button]]))
     new_name = update.callback_query.message.text
-
+    print(context.user_data[recipe_ID])
     recipe = context.user_data[recipe_ID]
     recipe["name"] = new_name
     # update DB
+    print(recipe)
+
 
     await update.callback_query.message.reply_text("השינוי נקלט בהצלחה")
-    display_recipe(update, context, recipe)
+    await display_recipe(update, context, recipe)
 
 def main():
 
