@@ -15,7 +15,7 @@ logging.basicConfig(
 # state for conv handler
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
 USER_QUERY = 1
-GET_NEW_VALUE = 1
+GET_NEW_VALUE, GET_DELETE_RECIPE = range(2)
 
 # text
 txt_add_recipe = "הוסף מתכון חדש"
@@ -132,10 +132,10 @@ async def get_instructions(update, context):
     return ConversationHandler.END
 
 async def cancel(update, context):
-    await update.callback_query.message.edit_text('הפעולה בוטלה.')
+    await update.callback_query.edit_message_text('הפעולה בוטלה.')
     await update.callback_query.message.reply_text('מה עוד?', reply_markup=InlineKeyboardMarkup(init_buttons))
     
-    context.user_data.clear() 
+    # context.user_data.clear()  -- I need to use pop instead clear method
     return ConversationHandler.END
 
 # search recipe
@@ -191,7 +191,6 @@ async def edit_recipe(update, context):
     query = update.callback_query
     await query.answer()
     action, recipe_ID = query.data.split('_')[1:]
-    print(action)
 
     context.user_data['recipe_ID'] = recipe_ID
     context.user_data['action'] = action
@@ -201,8 +200,13 @@ async def edit_recipe(update, context):
     elif action == txt_edit_ingredients or action == txt_edit_instructions or action == txt_edit_name:
         await query.edit_message_text(f"נא להקליד את העדכון ב{action}:", reply_markup = InlineKeyboardMarkup([[cancel_button]]))
     elif action == txt_delete:
-        await query.edit_message_text("בטוח שרוצה למחוק?", reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton('כן', callback_data='OK to delete'), 
-                                                                            InlineKeyboardButton('לא', callback_data='cancel to delete')]]))
+        await query.edit_message_text("בטוח שרוצה למחוק?", reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton('כן', callback_data='OK to delete'), InlineKeyboardButton('לא', callback_data=txt_cancel)]]))
+
+        message_id_edit = query.message.message_id
+        context.user_data['message_id_edit'] = message_id_edit
+
+        return GET_DELETE_RECIPE
+
     message_id_edit = query.message.message_id
     context.user_data['message_id_edit'] = message_id_edit
     return GET_NEW_VALUE
@@ -246,6 +250,20 @@ async def edit_recipe_get_respond(update, context):
 
     return ConversationHandler.END
 
+async def delete_recipe(update, context):
+    query = update.callback_query
+
+    message_id = context.user_data['message_id']
+    message_id_edit = context.user_data['message_id_edit']
+
+    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
+    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id_edit)
+
+    # TO DO - update DB
+    await query.message.reply_text('המתכון נמחק בהצלחה')
+    await query.message.reply_text('מה עוד?', reply_markup=InlineKeyboardMarkup(init_buttons))
+
+    return ConversationHandler.END
 
 # inline mode
 async def inline_query(update, context):
@@ -314,6 +332,7 @@ def main():
         entry_points=[CallbackQueryHandler(edit_recipe, pattern=txt_edit)],
         states={
             GET_NEW_VALUE: [MessageHandler(filters.TEXT | filters.PHOTO & ~filters.COMMAND, edit_recipe_get_respond)],
+            GET_DELETE_RECIPE: [CallbackQueryHandler(delete_recipe, pattern="OK to delete"), CallbackQueryHandler(cancel, pattern=txt_cancel)]
         },
         fallbacks=[CallbackQueryHandler(cancel, pattern=txt_cancel)]
     )
