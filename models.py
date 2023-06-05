@@ -8,6 +8,7 @@ from telegram import (
 from telegram.ext import ConversationHandler
 
 import uuid
+from dynamoDB import RecipeHandler
 
 # text
 txt_add_recipe = "הוסף מתכון חדש"
@@ -46,6 +47,9 @@ def edit_recipe_button(recipe_ID):
 
 # commends
 async def start(update, context):
+    user_id = update.message.from_user.id
+    context.user_data['user_id'] = str(user_id)
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text="אני בוט מתכונים! בו ניתן להוסיף לערוך ולחפש את המתכונים בצורה נוחה...", reply_markup=InlineKeyboardMarkup(init_buttons))
 
 async def unknown(update, context):
@@ -106,21 +110,22 @@ async def get_instructions(update, context):
     instructions = update.message.text
     context.user_data['recipe_instructions'] = instructions
 
-    # Build the recipe ID
     recipe_ID = str(uuid.uuid4())
     recipe = {
         'id': recipe_ID,
+        'created_by': user_ID,
         'name': context.user_data['recipe_name'],
         'ingredients': context.user_data['recipe_ingredients'],
         'instructions': context.user_data['recipe_instructions'],
         'photo': context.user_data.get('recipe_photo')
     }
     
+    # TO DO - send to database
+    Recipe_handler = RecipeHandler('recipes')
+    Recipe_handler.add_recipe()
+
     # Send the recipe to the user
     await display_recipe(update, context, recipe)
-
-
-    # TO DO - send to database
 
     # Clear the conversation data
     context.user_data.clear()
