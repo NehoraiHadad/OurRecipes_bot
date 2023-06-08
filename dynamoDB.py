@@ -105,14 +105,16 @@ class RecipeHandler(DynamoDBHandler):
             "recipe_name": recipe_name,
             "ingredients": ingredients,
             "instructions": instructions,
-            "photo": photo,
+            "photo_url": photo,
         }
 
         user_handler = UserHandler("users")
         user_handler.add_accessible_recipe(user_id, recipe_id)
 
-        return self.put_item(item)
+        response = self.table.put_item(Item = item)
 
+        return response
+    
     def get_user_recipes(self, user_id: str) -> List[Dict[str, Any]]:
         filter_expression = boto3.dynamodb_client.conditions.Attr("created_by").eq(
             user_id
