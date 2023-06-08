@@ -10,6 +10,14 @@ from telegram.ext import ConversationHandler
 import uuid
 from dynamoDB import RecipeHandler, UserHandler
 
+import io
+
+from s3 import (
+    upload_photo_to_s3,
+    download_photo_from_s3,
+    delete_photo_from_s3
+    )
+
 user_handler = UserHandler("users")
 recipe_handler = RecipeHandler("recipes")
 
@@ -104,9 +112,10 @@ async def display_recipe(update, context, recipe):
     context.user_data[recipe["recipe_id"]] = recipe
 
     recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
-    if recipe["photo"] != "":
+    if recipe["photo_url"] != "":
+        photo = download_photo_from_s3(recipe["photo_url"])
         await photo_display_recipe(
-            update, context, recipe["photo"], recipe["recipe_id"], recipe_str
+            update, context, photo, recipe["recipe_id"], recipe_str
         )
     else:
         await txt_display_recipe(update, context, recipe["recipe_id"], recipe_str)
@@ -155,8 +164,16 @@ async def get_recipe_name(update, context):
 async def get_photo(update, context):
     if update.message.photo:
         # Photo received
-        photo = update.message.photo[-1].file_id
-        context.user_data["recipe_photo"] = photo
+        photo_id = update.message.photo[-1].file_id
+        photo = await context.bot.get_file(photo_id)
+
+        # Create an in-memory file-like object to store the photo data
+        photo_data = io.BytesIO()
+        await photo.download_to_memory(out=photo_data)
+        photo_data.seek(0)
+
+        context.user_data["recipe_photo"] = photo_data
+
         await update.message.reply_text(
             "הרכיבים (מופרדים בפסיק):",
             reply_markup=InlineKeyboardMarkup([[cancel_button]]),
@@ -165,6 +182,7 @@ async def get_photo(update, context):
     else:
         # No photo received, proceed without photo
         context.user_data["recipe_photo"] = ""
+
         await update.message.reply_text(
             "הרכיבים (מופרדים בפסיק):",
             reply_markup=InlineKeyboardMarkup([[cancel_button]]),
@@ -185,15 +203,18 @@ async def get_instructions(update, context):
     instructions = update.message.text
     context.user_data["recipe_instructions"] = instructions
     user_id = context.user_data["user_id"]
+    photo_data = context.user_data["recipe_photo"]
 
     recipe_id = str(uuid.uuid4())
+    photo_url = await upload_photo_to_s3(photo_data, recipe_id)
+
     recipe = {
         "recipe_id": recipe_id,
         "created_by": user_id,
         "recipe_name": context.user_data["recipe_name"],
         "ingredients": context.user_data["recipe_ingredients"],
         "instructions": context.user_data["recipe_instructions"],
-        "photo": context.user_data.get("recipe_photo"),
+        "photo_url": photo_url,
     }
 
     # Send to DynamoDB
@@ -203,9 +224,10 @@ async def get_instructions(update, context):
         recipe["recipe_name"],
         recipe["ingredients"],
         recipe["instructions"],
-        recipe["photo"],
+        recipe["photo_url"],
     )
 
+    # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
     # Send the recipe to the user
     await display_recipe(update, context, recipe)
 
@@ -237,7 +259,6 @@ async def search_recipe_callback(update, context):
 
 
 async def get_user_search(update, context):
-    
     user_query = update.message.text
     context.user_data["user_query"] = user_query
     user_id = context.user_data["user_id"]
@@ -362,10 +383,21 @@ async def edit_recipe_get_respond(update, context):
         recipe["instructions"] = new_instructions
         update_data = {"instructions": new_instructions}
     elif action == txt_edit_photo:
-        new_photo = update.message.photo[-1].file_id
-        recipe["photo"] = new_photo
-        update_data = {"photo": new_photo}
+        new_photo_id = update.message.photo[-1].file_id
+        photo = await context.bot.get_file(new_photo_id)
 
+        # Create an in-memory file-like object to store the photo data
+        photo_data = io.BytesIO()
+        await photo.download_to_memory(out=photo_data)
+        photo_data.seek(0)
+
+        photo_url = await upload_photo_to_s3(photo_data, recipe_id)
+        if recipe["photo_url"] != "":
+            delete_photo_from_s3(recipe["photo_url"])
+
+        recipe["photo_url"] = photo_url
+        update_data = {"photo_url": photo_url}
+    
     #  Update DB
     recipe_handler.update_recipe(recipe_id, update_data)
     await update.message.reply_text("השינוי נשמר בהצלחה")
@@ -375,6 +407,7 @@ async def edit_recipe_get_respond(update, context):
         if key in context.user_data:
             del context.user_data[key]
 
+    # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
     await display_recipe(update, context, recipe)
 
     return ConversationHandler.END
@@ -386,10 +419,15 @@ async def delete_recipe(update, context):
     message_id = context.user_data["message_id"]
     message_id_edit = context.user_data["message_id_edit"]
 
-    # Update DB
     recipe_id = context.user_data["recipe_id"]
     user_id = context.user_data["user_id"]
+    recipe = context.user_data[recipe_id]
+
+    # Update DB
     recipe_handler.remove_recipe(recipe_id, user_id)
+    if recipe["photo_url"] != "":
+        delete_photo_from_s3(recipe["photo_url"])
+    
 
     await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id
@@ -413,9 +451,7 @@ async def inline_query(update, context):
 
     # Retrieve matching recipes from your recipe collection or database
     accessible_recipes = user_handler.get_accessible_recipes(user_id)
-    matching_recipes = recipe_handler.search_recipes_by_name(
-        accessible_recipes, query
-    )
+    matching_recipes = recipe_handler.search_recipes_by_name(accessible_recipes, query)
 
     # Generate the inline query results
     results = []
