@@ -3,15 +3,16 @@ from telegram import (
     InlineKeyboardMarkup,
     InputTextMessageContent,
     InlineQueryResultArticle,
-)
+    )
 
 from telegram.ext import ConversationHandler
+from telegram.constants import ParseMode
 
 import uuid
-from dynamoDB import RecipeHandler, UserHandler
-
 import io
+import datetime
 
+from dynamoDB import RecipeHandler, UserHandler
 from s3 import (
     upload_photo_to_s3,
     download_photo_from_s3,
@@ -92,8 +93,8 @@ async def start(update, context):
     username = update.effective_user.first_name
     context.user_data["user_id"] = user_id
     context.user_data["user_name"] = username
-    user_handler.register_user(user_id, username, [])
-
+    response = user_handler.register_user(user_id, username, [])
+    print(response)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=f"שלום {username}!\nאני בוט מתכונים! בו ניתן להוסיף לערוך ולחפש את המתכונים בצורה נוחה...",
@@ -111,7 +112,10 @@ async def unknown(update, context):
 async def display_recipe(update, context, recipe):
     context.user_data[recipe["recipe_id"]] = recipe
 
-    recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
+    recipe_ingredients_list = [ingredient.strip() for ingredient in recipe["ingredients"].split(',')]
+    formatted_ingredients = '\n'.join([f"||{index+1}\.||  {ingredient}" for index, ingredient in enumerate(recipe_ingredients_list)])
+
+    recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*\n{formatted_ingredients}\n\n*הוראות:*\n{recipe["instructions"]}'
     if recipe["photo_url"] != "":
         photo = download_photo_from_s3(recipe["photo_url"])
         await photo_display_recipe(
@@ -127,7 +131,7 @@ async def photo_display_recipe(update, context, photo, recipe_id, recipe_str):
         update.effective_chat.id,
         photo=photo,
         caption=recipe_str,
-        parse_mode="Markdown",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=reply_markup,
     )
 
@@ -135,7 +139,7 @@ async def photo_display_recipe(update, context, photo, recipe_id, recipe_str):
 async def txt_display_recipe(update, context, recipe_id, recipe_str):
     reply_markup = InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]])
     await update.message.reply_text(
-        f"המתכון שלך:\n\n{recipe_str}", parse_mode="Markdown", reply_markup=reply_markup
+        f"המתכון שלך:\n\n{recipe_str}", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=reply_markup
     )
 
 
@@ -208,6 +212,9 @@ async def get_instructions(update, context):
     recipe_id = str(uuid.uuid4())
     photo_url = await upload_photo_to_s3(photo_data, recipe_id)
 
+    current_times = datetime.datetime.now().isoformat()
+    recipe_created = current_times
+
     recipe = {
         "recipe_id": recipe_id,
         "created_by": user_id,
@@ -215,6 +222,8 @@ async def get_instructions(update, context):
         "ingredients": context.user_data["recipe_ingredients"],
         "instructions": context.user_data["recipe_instructions"],
         "photo_url": photo_url,
+        'recipe_created': recipe_created,
+        'recipe_modified': ""
     }
 
     # Send to DynamoDB
@@ -225,6 +234,8 @@ async def get_instructions(update, context):
         recipe["ingredients"],
         recipe["instructions"],
         recipe["photo_url"],
+        recipe["recipe_created"],
+        recipe["recipe_modified"]
     )
 
     # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
@@ -396,7 +407,8 @@ async def edit_recipe_get_respond(update, context):
             delete_photo_from_s3(recipe["photo_url"])
 
         recipe["photo_url"] = photo_url
-        update_data = {"photo_url": photo_url}
+        current_timestamp = datetime.datetime.now().isoformat()
+        update_data = {"photo_url": photo_url, "recipe_modified": current_timestamp}
     
     #  Update DB
     recipe_handler.update_recipe(recipe_id, update_data)
