@@ -6,17 +6,16 @@ from telegram import (
 )
 
 from telegram.ext import ConversationHandler
+from telegram.constants import ParseMode
 
 import uuid
-from dynamoDB import RecipeHandler, UserHandler
-
 import io
+import datetime
 
-from s3 import (
-    upload_photo_to_s3,
-    download_photo_from_s3,
-    delete_photo_from_s3
-    )
+from dynamoDB import RecipeHandler, UserHandler
+from s3 import upload_photo_to_s3, download_photo_from_s3, delete_photo_from_s3
+
+from utils.text_effects import add_words_bold
 
 user_handler = UserHandler("users")
 recipe_handler = RecipeHandler("recipes")
@@ -37,6 +36,7 @@ txt_edit_instructions = "הוראות"
 txt_edit_photo = "תמונה"
 txt_delete_recipe = "מחק מתכון⁉"
 txt_delete = "מחק"
+txt_more_details = "פרטים נוספים"
 
 # state for conv handler
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
@@ -86,19 +86,31 @@ def edit_recipe_button(recipe_id):
     )
 
 
+def more_details_button(recipe_id):
+    return InlineKeyboardButton(
+        txt_more_details, callback_data=f"{txt_more_details}{recipe_id}"
+    )
+
+
 # commends
 async def start(update, context):
     user_id = str(update.message.from_user.id)
     username = update.effective_user.first_name
     context.user_data["user_id"] = user_id
     context.user_data["user_name"] = username
-    user_handler.register_user(user_id, username, [])
+    response = user_handler.register_user(user_id, username, [])
 
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"שלום {username}!\nאני בוט מתכונים! בו ניתן להוסיף לערוך ולחפש את המתכונים בצורה נוחה...",
-        reply_markup=InlineKeyboardMarkup(init_buttons),
-    )
+    if response:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"שלום {username}!\nאני בוט מתכונים! בו ניתן להוסיף לערוך ולחפש את המתכונים בצורה נוחה...",
+            reply_markup=InlineKeyboardMarkup(init_buttons),
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="יש לנו בעיה... יש ללחוץ שוב על /start"
+        )
 
 
 async def unknown(update, context):
@@ -111,8 +123,19 @@ async def unknown(update, context):
 async def display_recipe(update, context, recipe):
     context.user_data[recipe["recipe_id"]] = recipe
 
-    recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
-    if recipe["photo_url"] != "":
+    recipe_ingredients_list = [
+        ingredient.strip() for ingredient in recipe["ingredients"].split(",")
+    ]
+    formatted_ingredients = "\n".join(
+        [
+            f"{index+1}\.  {ingredient}"
+            for index, ingredient in enumerate(recipe_ingredients_list)
+        ]
+    )
+
+    recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*\n{formatted_ingredients}\n\n*הוראות:*\n{recipe["instructions"]}'
+
+    if recipe["photo_url"] != None:
         photo = download_photo_from_s3(recipe["photo_url"])
         await photo_display_recipe(
             update, context, photo, recipe["recipe_id"], recipe_str
@@ -122,20 +145,26 @@ async def display_recipe(update, context, recipe):
 
 
 async def photo_display_recipe(update, context, photo, recipe_id, recipe_str):
-    reply_markup = InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]])
+    reply_markup = InlineKeyboardMarkup(
+        [[edit_recipe_button(recipe_id), more_details_button(recipe_id)]]
+    )
     await context.bot.send_photo(
         update.effective_chat.id,
         photo=photo,
         caption=recipe_str,
-        parse_mode="Markdown",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=reply_markup,
     )
 
 
 async def txt_display_recipe(update, context, recipe_id, recipe_str):
-    reply_markup = InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]])
+    reply_markup = InlineKeyboardMarkup(
+        [[edit_recipe_button(recipe_id), more_details_button(recipe_id)]]
+    )
     await update.message.reply_text(
-        f"המתכון שלך:\n\n{recipe_str}", parse_mode="Markdown", reply_markup=reply_markup
+        recipe_str,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=reply_markup,
     )
 
 
@@ -208,6 +237,11 @@ async def get_instructions(update, context):
     recipe_id = str(uuid.uuid4())
     photo_url = await upload_photo_to_s3(photo_data, recipe_id)
 
+    current_date = datetime.datetime.now()
+    date_format = '%Y-%m-%d %H:%M:%S'
+    date_string = current_date.strftime(date_format)
+    recipe_created = date_string
+
     recipe = {
         "recipe_id": recipe_id,
         "created_by": user_id,
@@ -215,6 +249,8 @@ async def get_instructions(update, context):
         "ingredients": context.user_data["recipe_ingredients"],
         "instructions": context.user_data["recipe_instructions"],
         "photo_url": photo_url,
+        "recipe_created": recipe_created,
+        "recipe_modified": "",
     }
 
     # Send to DynamoDB
@@ -225,6 +261,8 @@ async def get_instructions(update, context):
         recipe["ingredients"],
         recipe["instructions"],
         recipe["photo_url"],
+        recipe["recipe_created"],
+        recipe["recipe_modified"],
     )
 
     # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
@@ -397,18 +435,30 @@ async def edit_recipe_get_respond(update, context):
 
         recipe["photo_url"] = photo_url
         update_data = {"photo_url": photo_url}
-    
-    #  Update DB
-    recipe_handler.update_recipe(recipe_id, update_data)
-    await update.message.reply_text("השינוי נשמר בהצלחה")
+
+    if update_data != "":
+        current_date = datetime.datetime.now()
+        date_format = '%Y-%m-%d %H:%M:%S'
+        date_string = current_date.strftime(date_format)
+        recipe_modified = date_string
+
+        update_data["recipe_modified"] = recipe_modified
+ 
+        #  Update DB
+        recipe_handler.update_recipe(recipe_id, update_data)
+        await update.message.reply_text("השינוי נשמר בהצלחה")
+
+        # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
+        await display_recipe(update, context, recipe)
+
+    else:
+        await update.message.reply_text('לא נקלט שינוי')
 
     keys_to_clear = ["action", "recipe_id", "message_id_edit", "message_id"]
     for key in keys_to_clear:
         if key in context.user_data:
             del context.user_data[key]
 
-    # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
-    await display_recipe(update, context, recipe)
 
     return ConversationHandler.END
 
@@ -427,7 +477,6 @@ async def delete_recipe(update, context):
     recipe_handler.remove_recipe(recipe_id, user_id)
     if recipe["photo_url"] != "":
         delete_photo_from_s3(recipe["photo_url"])
-    
 
     await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id
@@ -444,16 +493,52 @@ async def delete_recipe(update, context):
     return ConversationHandler.END
 
 
+async def more_details(update, context):
+    query = update.callback_query
+    await query.answer()
+    
+    recipe_id = query.data.replace(txt_more_details, "")
+    recipe = context.user_data[recipe_id]
+
+    bold_words = ['שם:', 'רכיבים:', 'הוראות:']
+
+    date_format = '%Y-%m-%d %H:%M:%S'
+
+    if recipe["recipe_modified"] != '':
+        str_modified =  recipe["recipe_modified"] 
+        str_modified = datetime.datetime.strptime(str_modified, date_format)
+    else:
+        str_modified = "המתכון לא עבר שינוי"
+
+    created_by = datetime.datetime.strptime(recipe["recipe_created"], date_format)
+    more_details_str = f"\n\n*תאריך הוספה:*  {created_by}\n\n*תאריך שינוי:*  {str_modified}"
+
+    if query.message.photo:
+        caption_bold = add_words_bold(query.message.caption, bold_words)
+        await query.message.edit_caption(
+            caption=f"{caption_bold}{more_details_str}",
+            reply_markup=InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        text_bold = add_words_bold(query.message.text, bold_words)
+        await query.message.edit_text(
+            text=f"{text_bold}{more_details_str}",
+            reply_markup=InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+
 # inline mode
 async def inline_query(update, context):
     query = update.inline_query.query
     user_id = str(update.inline_query.from_user.id)
 
-    # Retrieve matching recipes from your recipe collection or database
+    # Retrieve matching recipes from database
     accessible_recipes = user_handler.get_accessible_recipes(user_id)
     matching_recipes = recipe_handler.search_recipes_by_name(accessible_recipes, query)
 
-    # Generate the inline query results
+    # inline query results
     results = []
     for recipe in matching_recipes:
         recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
@@ -468,5 +553,4 @@ async def inline_query(update, context):
         )
         results.append(result)
 
-    # Send the results back to the user
     await context.bot.answer_inline_query(update.inline_query.id, results)

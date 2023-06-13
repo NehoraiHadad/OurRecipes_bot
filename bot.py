@@ -11,6 +11,7 @@ from handlers import(
     edit_conv_handler,
     search_conv_handler,
     add_conv_handler,
+    more_details_handler
 )
 
 from models import (
@@ -30,6 +31,8 @@ logging.basicConfig(
 txt_try_again = "לנסות שוב?🔄"
 txt_edit_recipe = "עריכת מתכון"
 txt_cancel = 'בטל🛑'
+txt_more_details = "פרטים נוספים"
+
 
 
 def main():
@@ -45,6 +48,7 @@ def main():
     application.add_handler(add_conv_handler)
     application.add_handler(search_conv_handler)
     application.add_handler(edit_conv_handler)
+    application.add_handler(more_details_handler)
     application.add_handler(CallbackQueryHandler(search_recipe_callback, pattern=txt_try_again))
     application.add_handler(CallbackQueryHandler(edit_recipe_callback, pattern=txt_edit_recipe))
     application.add_handler(CallbackQueryHandler(cancel, pattern=txt_cancel))

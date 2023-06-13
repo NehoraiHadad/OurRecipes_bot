@@ -17,6 +17,7 @@ from models import (
     edit_recipe,
     edit_recipe_get_respond,
     delete_recipe,
+    more_details
 )
 
 # text
@@ -34,6 +35,8 @@ txt_edit_instructions = "הוראות"
 txt_edit_photo = "תמונה"
 txt_delete_recipe = "מחק מתכון⁉"
 txt_delete = "מחק"
+txt_more_details = "פרטים נוספים"
+
 
 # state for conv handler
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
@@ -85,3 +88,5 @@ edit_conv_handler = ConversationHandler(
     },
     fallbacks=[CallbackQueryHandler(cancel, pattern=txt_cancel)],
 )
+
+more_details_handler = CallbackQueryHandler(more_details, pattern=txt_more_details)
