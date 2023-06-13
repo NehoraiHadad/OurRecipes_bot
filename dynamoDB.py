@@ -45,8 +45,9 @@ class UserHandler(DynamoDBHandler):
         self, user_id: str, username: str, accessibleRecipes: list[str]
     ) -> Dict[str, Any]:
         existing_user = self.table.get_item(Key={"user_id": user_id})
-        current_times = datetime.datetime.now().isoformat()
-
+        current_date = datetime.datetime.now()
+        date_format = '%Y-%m-%d %H:%M:%S'
+        date_string = current_date.strftime(date_format)
         if existing_user and "Item" in existing_user:
             existing_user = existing_user["Item"]
             # User already exists, update the necessary attributes
@@ -56,7 +57,7 @@ class UserHandler(DynamoDBHandler):
                 existing_user["accessible_recipes"].extend(accessibleRecipes)
             else:
                 existing_user["accessible_recipes"] = accessibleRecipes
-            existing_user["last_seen"] = current_times
+            existing_user["last_seen"] = date_string
             response = self.put_item(existing_user)
             return response
         else:
@@ -66,7 +67,7 @@ class UserHandler(DynamoDBHandler):
                 "user_id": user_id,
                 "username": username,
                 "accessible_recipes": accessibleRecipes,
-                "join_in" : current_times
+                "join_in" : date_string
             }
             response = self.put_item(item)
             return response
