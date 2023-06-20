@@ -17,7 +17,8 @@ from models import (
     edit_recipe,
     edit_recipe_get_respond,
     delete_recipe,
-    more_details
+    more_details,
+    share_callback
 )
 
 # text
@@ -36,6 +37,11 @@ txt_edit_photo = "תמונה"
 txt_delete_recipe = "מחק מתכון⁉"
 txt_delete = "מחק"
 txt_more_details = "פרטים נוספים"
+txt_share_recipe = "שיתוף"
+txt_share_single = "share single"
+txt_share_all = "share all"
+txt_share_link = "יצירת לינק"
+txt_share_public = "שתף לכולם"
 
 
 # state for conv handler
@@ -88,5 +94,6 @@ edit_conv_handler = ConversationHandler(
     },
     fallbacks=[CallbackQueryHandler(cancel, pattern=txt_cancel)],
 )
+
 
 more_details_handler = CallbackQueryHandler(more_details, pattern=txt_more_details)
