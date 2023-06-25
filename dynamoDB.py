@@ -1,4 +1,5 @@
 import boto3
+from boto3.dynamodb.conditions import Key
 from typing import Any, Dict, List, Optional
 import datetime
 
@@ -42,8 +43,7 @@ class DynamoDBHandler:
 
 class UserHandler(DynamoDBHandler):
     def register_user(
-        self, user_id: str, username: str, 
-        shared_recipes: Optional[List[str]]
+        self, user_id: str, username: str, shared_recipes: Optional[List[str]]
     ) -> Dict[str, Any]:
         existing_user = self.table.get_item(Key={"user_id": user_id})
         current_date = datetime.datetime.now()
@@ -69,7 +69,7 @@ class UserHandler(DynamoDBHandler):
             response = self.put_item(item)
 
             print(response)
-            
+
             return response
 
     def add_accessible_recipe(self, user_id: str, recipe_id: str) -> Dict[str, Any]:
@@ -81,14 +81,14 @@ class UserHandler(DynamoDBHandler):
         )
         return response["Attributes"]
 
-    def get_owned_recipes(self, user_id: str) -> List[str]:
+    def fetch_owned_recipes(self, user_id: str) -> List[str]:
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item", {})
         owned_recipes = item.get("owned_recipes", [])
 
         return owned_recipes
-    
-    def get_shared_recipes(self, user_id: str) -> List[str]:
+
+    def fetch_shared_recipes(self, user_id: str) -> List[str]:
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item", {})
         shared_recipes = item.get("shared_recipes", [])
@@ -141,13 +141,6 @@ class RecipeHandler(DynamoDBHandler):
 
         return response
 
-    def get_user_recipes(self, user_id: str) -> List[Dict[str, Any]]:
-        filter_expression = boto3.dynamodb_client.conditions.Attr("created_by").eq(
-            user_id
-        )
-        response = self.scan(filter_expression)
-        return response["Items"]
-
     def remove_recipe(self, recipe_id: str, user_id: str) -> Dict[str, Any]:
         user_handler = UserHandler("users")
         user_handler.remove_accessed_recipe(user_id, recipe_id)
@@ -183,16 +176,21 @@ class RecipeHandler(DynamoDBHandler):
         return matching_recipes
 
     def make_public(self, recipe_id: str) -> None:
-            self.update_item(
-                recipe_id,
-                'set is_public = :t',
-                {':t': True},
-            )
-    
+        self.update_item(
+            recipe_id,
+            "set is_public = :t",
+            {":t": True},
+        )
+
     def make_all_public(self, user_id: str) -> None:
         user_recipes = self.fetch_private_recipes(user_id)
         for recipe in user_recipes:
-            self.make_public(recipe['recipe_id'])
+            self.make_public(recipe["recipe_id"])
+
+    def fetch_public_recipes(self) -> List[Dict[str, Any]]:
+        filter_expression = Key('is_public').eq(True)
+        return self.scan(filter_expression)
+
 
 class PermissionsHandler(DynamoDBHandler):
     def save_share_link(
