@@ -45,7 +45,10 @@ txt_share_link = "יצירת לינק"
 txt_share_link_en = "link"
 txt_share_public = "שתף לכולם"
 txt_share_public_en = "public"
-
+txt_share_edit = "עריכה"
+txt_share_edit_en = "edit"
+txt_share_view = "צפייה"
+txt_share_view_en = "view"
 
 # state for conv handler
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
@@ -54,13 +57,15 @@ GET_NEW_VALUE, GET_DELETE_RECIPE = range(2)
 
 # buttons
 cancel_button = InlineKeyboardButton(txt_cancel, callback_data=txt_cancel)
+
+
 def init_buttons():
     init_buttons = [
-    [InlineKeyboardButton(txt_add_recipe, callback_data=txt_add_recipe)],
-    [InlineKeyboardButton(txt_search_recipe, callback_data=txt_search_recipe)],
-    share_button(is_all_or_single=txt_share_all),
+        [InlineKeyboardButton(txt_add_recipe, callback_data=txt_add_recipe)],
+        [InlineKeyboardButton(txt_search_recipe, callback_data=txt_search_recipe)],
+        share_button(is_all_or_single=txt_share_all),
     ]
-    return(init_buttons)
+    return init_buttons
 
 
 def edit_buttons(context, recipe_id):
@@ -123,22 +128,34 @@ def edit_recipe_button(recipe_id):
         txt_edit_recipe, callback_data=f"{txt_edit_recipe}{recipe_id}"
     )
 
+
 def more_details_button(recipe_id):
     return InlineKeyboardButton(
         txt_more_details, callback_data=f"{txt_more_details}{recipe_id}"
     )
 
-def share_button(is_all_or_single, recipe_id = None):
+
+def share_button(is_all_or_single, recipe_id=None):
     return InlineKeyboardButton(
-        txt_share_recipe, callback_data=is_all_or_single + ("_" + recipe_id if recipe_id is not None else "")
+        txt_share_recipe,
+        callback_data=is_all_or_single
+        + ("_" + recipe_id if recipe_id is not None else ""),
     )
 
-def share_buttons(is_all_or_single, recipe_id = None):
+
+def share_buttons_link_or_public(unique_id):
     return InlineKeyboardButton(
-        txt_share_link, callback_data = is_all_or_single + "_" + txt_share_link_en + '_' + recipe_id if recipe_id else ""
+        txt_share_link, callback_data=unique_id + "_" + txt_share_link_en
     ), InlineKeyboardButton(
-        txt_share_public, callback_data = is_all_or_single + "_" + txt_share_public_en + '_' + recipe_id if recipe_id else ""
-        )
+        txt_share_public, callback_data=unique_id + "_" + txt_share_public_en
+    )
+
+def share_buttons_permissions(unique_id):
+    return InlineKeyboardButton(
+        txt_share_edit, callback_data=unique_id + "_" + txt_share_edit_en
+    ), InlineKeyboardButton(
+        txt_share_view, callback_data=unique_id + "_" + txt_share_view_en
+    )
 
 
 # commends
@@ -187,7 +204,7 @@ def unknown(update, context):
 
 
 # display functions
-def display_recipe(update, context, recipe, is_shared = False):
+def display_recipe(update, context, recipe, is_shared=False):
     context.user_data[recipe["recipe_id"]] = recipe
 
     recipe_ingredients_list = [
@@ -209,30 +226,44 @@ def display_recipe(update, context, recipe, is_shared = False):
             update.effective_chat.id,
             photo=photo,
             caption=recipe_str,
-            parse_mode=ParseMode.MARKDOWN,    
-            reply_markup = InlineKeyboardMarkup(
-            [[edit_recipe_button(recipe["recipe_id"]), more_details_button(recipe["recipe_id"])]],[[share_button(recipe["recipe_id"], txt_share_single)]]
-        ) if not is_shared else None
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        edit_recipe_button(recipe["recipe_id"]),
+                        more_details_button(recipe["recipe_id"]),
+                    ]
+                ],
+                [[share_button(recipe["recipe_id"], txt_share_single)]],
+            )
+            if not is_shared
+            else None,
         )
     else:
         message = update.message.reply_text(
             recipe_str,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup = InlineKeyboardMarkup(
-            [[edit_recipe_button(recipe["recipe_id"]), more_details_button(recipe["recipe_id"])]],[[share_button(recipe["recipe_id"], txt_share_single)]]
-        ) if not is_shared else None
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        edit_recipe_button(recipe["recipe_id"]),
+                        more_details_button(recipe["recipe_id"]),
+                    ]
+                ],
+                [[share_button(recipe["recipe_id"], txt_share_single)]],
+            )
+            if not is_shared
+            else None,
         )
 
     if is_shared:
-        update_message_with_permissions(
-            context, message, recipe["recipe_id"]
-        )
+        update_message_with_permissions(context, message, recipe["recipe_id"])
 
 
-async def update_message_with_permissions(
-    context, message, recipe_id
-):
-    shared_recipe_permission = context.user_data["shared_recipe_permissions"].get(recipe_id)
+async def update_message_with_permissions(context, message, recipe_id):
+    shared_recipe_permission = context.user_data["shared_recipe_permissions"].get(
+        recipe_id
+    )
     if shared_recipe_permission == "view":
         reply_markup = None  # No buttons for view only
     elif shared_recipe_permission == "edit":
@@ -390,15 +421,21 @@ def get_user_search(update, context):
         shared_recipe_info = permissions_handler.fetch_share_info(shared_recipe_info)
         if shared_recipe_info:
             if shared_recipe_info["all_recipes"]:
-                user_shared_recipes = user_handler.get_owned_recipes(shared_recipe_info["user_id"])
+                user_shared_recipes = user_handler.get_owned_recipes(
+                    shared_recipe_info["user_id"]
+                )
                 shared_recipes.extend(user_shared_recipes)
 
                 for recipe in user_shared_recipes:
-                        shared_recipe_permissions[recipe["recipe_id"]] = shared_recipe_info["permission_level"]
-     
+                    shared_recipe_permissions[recipe["recipe_id"]] = shared_recipe_info[
+                        "permission_level"
+                    ]
+
             elif shared_recipe_info:
                 shared_recipes.append(shared_recipe_info["recipe_id"])
-                shared_recipe_permissions[shared_recipe_info["recipe_id"]] = shared_recipe_info["permission_level"]
+                shared_recipe_permissions[
+                    shared_recipe_info["recipe_id"]
+                ] = shared_recipe_info["permission_level"]
 
     context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
 
@@ -629,30 +666,78 @@ def more_details(update, context):
             parse_mode=ParseMode.MARKDOWN,
         )
 
+
 def share_callback(update, context):
     query = update.callback_query
     query.answer()
 
-    sharing_info = {}
+    sharing_info = {
+        "all": False,
+        "recipe_id": "",
+        "link_or_public": "",
+
+    }
 
     query_data = query.data.split("_")
-    recipe_id = query_data[1] if len(query_data) > 2 else None
     is_all_or_single = query_data[0]
+    recipe_id = query_data[1] if len(query_data) > 2 else None
+
+    unique_id = str(uuid.uuid4())
+    if "share" not in context.user_data:
+        context.user_data["share"] = {}
+
     if is_all_or_single == txt_share_all:
-        sharing_info["all"] = True
+        sharing_info = {"all": True}
     else:
-        sharing_info[recipe_id] = recipe_id
+        sharing_info = {"recipe_id": recipe_id}
+
+    context.user_data["share"][unique_id] = sharing_info
 
     query.reply_text(
-        f"איך לשתף?\n\n*אפשרות* אחת לשתף לכולם\nאפשרות *אחרת* לשתף בעזרת קישור שניתן לשלוח למי שרוצים לשתף", reply_markup=InlineKeyboardMarkup([[share_buttons(is_all_or_single, recipe_id)],[cancel_button]])
+        "איך לשתף?\n\n*אפשרות* אחת לשתף לכולם\nאפשרות *אחרת* לשתף בעזרת קישור שניתן לשלוח למי שרוצים לשתף",
+        reply_markup=InlineKeyboardMarkup(
+            [[share_buttons_link_or_public(unique_id)], [cancel_button]]
+        ),
     )
 
 
-def share_permission_level(update, contect):
+def share_permission_level(update, context):
     query = update.callback_query
     query.answer()
 
+    query_data = query.data.split("_")
+    unique_id = query_data[0]
+    if query_data[1] == txt_share_link_en:
+        link = query_data[1]
+    else:
+        public = txt_share_public_en
+    
+    context.user_data["share"][unique_id] = {"link_or_public": link if link else public}
 
+    query.edit_message_text(
+        "הכי טוב לשתף כמה שטוב לך :)\n\nכעת יש לבחור את רמת ההרשאות המתאימה לך.\n*צפייה* או *עריכה*.\n(בכל מקרה לאף אחד מלבדך לא ניתן את האפשרות למחוק מתכון)",reply_markup=InlineKeyboardMarkup(
+            [[share_buttons_permissions(unique_id)], [cancel_button]]
+        ), parse_mode=ParseMode.MARKDOWN
+    )
+    
+def share_public(update, context):
+    query = update.callback_query
+    query.answer()    
+
+    query_data = query.data.split("_")
+    unique_id = query_data[0]
+
+    share_info = context.user_data["share"][unique_id]
+    user_id = update.effective_user.id
+
+    if share_info["all"]:
+        recipe_handler.make_all_public(user_id)
+
+        query.reply_text("כל המתכונים שלך ציבוריים עכשיו!\n נחמד מצידך 🙂")
+    elif len(share_info["recipe_id"]) > 2:
+        recipe_handler.make_public(share_info["recipe_id"])   
+        
+        query.reply_text("המתכון שלך ציבורי עכשיו!\n נחמד מצידך 🙂")
 
 
 def share_link(update, context):
@@ -667,7 +752,11 @@ def share_link(update, context):
 
     # permission_level = context.user_data["permission_level"]
     all_recipes = is_all_or_single == txt_share_all
-    recipe_id = context.user_data["recipe_to_share"] if is_all_or_single == txt_share_single else None
+    recipe_id = (
+        context.user_data["recipe_to_share"]
+        if is_all_or_single == txt_share_single
+        else None
+    )
     unique_id = str(uuid.uuid4())
 
     # Save the unique_id in the database

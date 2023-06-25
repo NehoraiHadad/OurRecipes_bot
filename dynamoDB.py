@@ -182,6 +182,17 @@ class RecipeHandler(DynamoDBHandler):
             matching_recipes.extend(response.get("Items", []))
         return matching_recipes
 
+    def make_public(self, recipe_id: str) -> None:
+            self.update_item(
+                recipe_id,
+                'set is_public = :t',
+                {':t': True},
+            )
+    
+    def make_all_public(self, user_id: str) -> None:
+        user_recipes = self.fetch_private_recipes(user_id)
+        for recipe in user_recipes:
+            self.make_public(recipe['recipe_id'])
 
 class PermissionsHandler(DynamoDBHandler):
     def save_share_link(
