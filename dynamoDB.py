@@ -13,8 +13,8 @@ class DynamoDBHandler:
         self.dynamodb_client = boto3.resource("dynamodb")
         self.table = self.dynamodb_client.Table(table_name)
 
-    def get_item(self, user_id: int) -> Optional[Dict[str, Any]]:
-        response = self.table.get_item(Key={"user_id": user_id})
+    def get_item(self, key: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        response = self.table.get_item(Key=key)
         return response["Item"] if "Item" in response else None
 
     def put_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -160,10 +160,10 @@ class RecipeHandler(DynamoDBHandler):
         return self.update_item(key, update_expression, expression_attribute_values)
 
     def search_recipes_by_name(
-        self, accessible_recipe_ids: List[str], search_query: str
+        self, recipe_ids: List[str], search_query: str
     ) -> List[Dict[str, Any]]:
         matching_recipes = []
-        for recipe_id in accessible_recipe_ids:
+        for recipe_id in recipe_ids:
             response = self.table.query(
                 KeyConditionExpression="recipe_id = :recipe_id",
                 FilterExpression="contains(recipe_name, :query)",
@@ -188,7 +188,7 @@ class RecipeHandler(DynamoDBHandler):
             self.make_public(recipe["recipe_id"])
 
     def fetch_public_recipes(self) -> List[Dict[str, Any]]:
-        filter_expression = Key('is_public').eq(True)
+        filter_expression = Key("is_public").eq(True)
         return self.scan(filter_expression)
 
 
@@ -220,6 +220,20 @@ class PermissionsHandler(DynamoDBHandler):
         item = self.get_item(self.permissions_table, {"unique_id": unique_id})
         return item if item else None
 
-    def add_share_access(self, user_id_shared: str):
-        item = {"user_id_shared": user_id_shared}
-        self.put_item(self.permissions_table, item)
+    def add_share_access(self, unique_id: str, user_id: str):
+        key = {"unique_id": unique_id}
+
+        # Fetch the existing item
+        item = self.get_item(self.permissions_table, key)
+        
+        if 'user_id_shared' in item:
+            if user_id not in item['user_id_shared']:
+                item['user_id_shared'].append(user_id)
+        else:
+            item['user_id_shared'] = [user_id]
+
+        # Update the item in the table
+        update_expression = "SET user_id_shared = :u"
+        expression_attribute_values = {":u": item['user_id_shared']}
+        self.update_item(self.permissions_table, key, update_expression, expression_attribute_values)
+

@@ -1,4 +1,3 @@
-import os
 import logging
 from telegram.ext import (ApplicationBuilder, CallbackQueryHandler)
 from commands import (

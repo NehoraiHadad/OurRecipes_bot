@@ -83,7 +83,6 @@ def edit_buttons(context, recipe_id):
                     callback_data=f"{txt_edit}_{txt_edit_ingredients}_{recipe_id}",
                 ),
             ],
-        )
         [
             InlineKeyboardButton(
                 txt_edit_instructions,
@@ -99,6 +98,7 @@ def edit_buttons(context, recipe_id):
             ),
             cancel_button,
         ]
+        )
     else:
         bottons = (
             [
@@ -111,7 +111,6 @@ def edit_buttons(context, recipe_id):
                     callback_data=f"{txt_edit}_{txt_edit_ingredients}_{recipe_id}",
                 ),
             ],
-        )
         [
             InlineKeyboardButton(
                 txt_edit_instructions,
@@ -121,6 +120,7 @@ def edit_buttons(context, recipe_id):
                 txt_edit_photo, callback_data=f"{txt_edit}_{txt_edit_photo}_{recipe_id}"
             ),
         ]
+        )
     return bottons
 
 
@@ -166,7 +166,7 @@ def share_buttons_permissions(unique_id, link_ot_public):
 
 
 # commends
-def start(update, context):
+async def start(update, context):
     user_id = str(update.message.from_user.id)
     username = update.effective_user.first_name
     context.user_data["user_id"] = user_id
@@ -175,31 +175,31 @@ def start(update, context):
 
     if context.args:
         unique_id = context.args[0]
-        share_info = PermissionsHandler.fetch_share_info(unique_id)
+        share_info = await permissions_handler.fetch_share_info(unique_id)
         if share_info["user_id"]:
             if share_info["user_id"] == user_id:
-                update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
+                await update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
                 return
             if share_info["recipe_id"] or share_info["all_recipes"]:
                 # TO DO - FIX
-                PermissionsHandler.add_share_access(user_id)
+                await permissions_handler.add_share_access(unique_id, user_id)
                 shared_recipes.append(unique_id)
-                update.message.reply_text(
+                await update.message.reply_text(
                     "שותפת עם מתכון!"
                     if share_info["recipe_id"]
                     else "שותפת עם מלא מתכונים!"
                 )
 
-    response = user_handler.register_user(user_id, username, shared_recipes)
+    response = await user_handler.register_user(user_id, username, shared_recipes)
 
     if response:
-        context.bot.send_message(
+        await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=f"שלום {username}!\nאני בוט מתכונים! בו ניתן להוסיף לערוך ולחפש את המתכונים בצורה נוחה...",
             reply_markup=InlineKeyboardMarkup(init_buttons),
         )
     else:
-        context.bot.send_message(
+        await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="יש לנו בעיה... יש ללחוץ שוב על /start",
         )
@@ -212,7 +212,7 @@ def unknown(update, context):
 
 
 # display functions
-def display_recipe(update, context, recipe, is_shared=False):
+def display_recipe(update, context, recipe, is_shared=False, is_public = False):
     context.user_data[recipe["recipe_id"]] = recipe
 
     recipe_ingredients_list = [
@@ -235,6 +235,7 @@ def display_recipe(update, context, recipe, is_shared=False):
             photo=photo,
             caption=recipe_str,
             parse_mode=ParseMode.MARKDOWN,
+            # TO DO - fix the reply_markup for owner and public
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
@@ -244,7 +245,7 @@ def display_recipe(update, context, recipe, is_shared=False):
                 ],
                 [[share_button(recipe["recipe_id"], txt_share_single)]],
             )
-            if not is_shared
+            if not is_shared or not is_public
             else None,
         )
     else:
@@ -260,7 +261,7 @@ def display_recipe(update, context, recipe, is_shared=False):
                 ],
                 [[share_button(recipe["recipe_id"], txt_share_single)]],
             )
-            if not is_shared
+            if not is_shared or not is_public
             else None,
         )
 
@@ -400,7 +401,7 @@ def cancel(update, context):
         "מה עוד?", reply_markup=InlineKeyboardMarkup(init_buttons)
     )
 
-    # context.user_data.clear()  -- I need to use pop instead clear method
+    # TO DO - context.user_data.clear()  -- I need to use pop instead clear method
     return ConversationHandler.END
 
 
@@ -420,32 +421,9 @@ def get_user_search(update, context):
     user_id = context.user_data["user_id"]
 
     # Perform the search and retrieve matching recipes from DB
-    owned_recipes = user_handler.fetch_owned_recipes(user_id)
-    shared_recipes_info = user_handler.fetch_shared_recipes(user_id)
-    shared_recipes = []
-    shared_recipe_permissions = {}
-
-    for shared_recipe_info in shared_recipes_info:
-        shared_recipe_info = permissions_handler.fetch_share_info(shared_recipe_info)
-        if shared_recipe_info:
-            if shared_recipe_info["all_recipes"]:
-                user_shared_recipes = user_handler.fetch_owned_recipes(
-                    shared_recipe_info["user_id"]
-                )
-                shared_recipes.extend(user_shared_recipes)
-
-                for recipe in user_shared_recipes:
-                    shared_recipe_permissions[recipe["recipe_id"]] = shared_recipe_info[
-                        "permission_level"
-                    ]
-
-            elif shared_recipe_info:
-                shared_recipes.append(shared_recipe_info["recipe_id"])
-                shared_recipe_permissions[
-                    shared_recipe_info["recipe_id"]
-                ] = shared_recipe_info["permission_level"]
-
-    context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
+    owned_recipes, shared_recipes, public_recipes = update_accessable_recipes(
+        update, context
+    )
 
     matching_recipes_owned = recipe_handler.search_recipes_by_name(
         owned_recipes, user_query
@@ -453,15 +431,21 @@ def get_user_search(update, context):
     matching_recipes_shared = recipe_handler.search_recipes_by_name(
         shared_recipes, user_query
     )
+    matching_recipes_publicd = recipe_handler.search_recipes_by_name(
+        public_recipes, user_query
+    )
 
     # Send the search results to the user
-    if matching_recipes_owned or matching_recipes_shared:
+    if matching_recipes_owned or matching_recipes_shared or matching_recipes_publicd:
         if matching_recipes_owned:
             for recipe in matching_recipes_owned:
                 display_recipe(update, context, recipe)
         if matching_recipes_shared:
             for recipe in matching_recipes_shared:
-                display_recipe(update, context, recipe, True)
+                display_recipe(update, context, recipe, is_shared=True)
+        if matching_recipes_publicd:
+            for recipe in matching_recipes_publicd:
+                display_recipe(update, context, recipe, is_public=True)
     else:
         update.message.reply_text(
             "לא מצאתי מתכון מתאים 😕",
@@ -728,7 +712,7 @@ def share_permission_level(update, context):
         context.user_data["share"][unique_id] = {"link_or_public": public}
         # share()
         text = "במצב שבו משתפים לכולם האפשרות גישה שניתנת היא לצפייה בלבד"
-        
+
     query.edit_message_text(
         f"{text}",
         reply_markup=InlineKeyboardMarkup(
@@ -799,6 +783,55 @@ def share_link(update, context, unique_id):
     query.edit_message_text(
         f"הנה הקישור לשיתוף: {share_link}", parse_mode=ParseMode.MARKDOWN
     )
+
+
+def update_accessable_recipes(update, context):
+    user_id = update.effective_user.id
+
+    all_public_recipes = recipe_handler.fetch_public_recipes()
+    owned_recipes = user_handler.fetch_owned_recipes(user_id)
+    shared_recipes_info = user_handler.fetch_shared_recipes(user_id)
+
+    shared_recipes = []
+    shared_recipe_permissions = {}
+
+    for shared_recipe_info in shared_recipes_info:
+        shared_recipe_info = permissions_handler.fetch_share_info(shared_recipe_info)
+        if shared_recipe_info:
+            if shared_recipe_info["all_recipes"]:
+                user_shared_recipes = user_handler.fetch_owned_recipes(
+                    shared_recipe_info["user_id"]
+                )
+                shared_recipes.extend(user_shared_recipes)
+
+                for recipe in user_shared_recipes:
+                    shared_recipe_permissions[recipe["recipe_id"]] = shared_recipe_info[
+                        "permission_level"
+                    ]
+
+            elif shared_recipe_info:
+                shared_recipes.append(shared_recipe_info["recipe_id"])
+                shared_recipe_permissions[
+                    shared_recipe_info["recipe_id"]
+                ] = shared_recipe_info["permission_level"]
+
+    context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
+
+    owned_recipe_ids = {recipe["recipe_id"] for recipe in owned_recipes}
+    shared_recipe_ids = {recipe["recipe_id"] for recipe in shared_recipes}
+
+    public_recipes = [
+        recipe
+        for recipe in all_public_recipes
+        if recipe["recipe_id"] not in owned_recipe_ids
+        and recipe["recipe_id"] not in shared_recipe_ids
+    ]
+
+    context.user_data["public_recipes"] = public_recipes
+    context.user_data["owned_recipes"] = owned_recipes
+    context.user_data["public_recipes"] = public_recipes
+
+    return owned_recipes, shared_recipes, public_recipes
 
 
 # inline mode

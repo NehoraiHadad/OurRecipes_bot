@@ -18,7 +18,9 @@ from models import (
     edit_recipe_get_respond,
     delete_recipe,
     more_details,
-    share_callback
+    share_callback,
+    share_permission_level,
+    share
 )
 
 # text
@@ -41,13 +43,21 @@ txt_share_recipe = "שיתוף"
 txt_share_single = "share single"
 txt_share_all = "share all"
 txt_share_link = "יצירת לינק"
+txt_share_link_en = "link"
 txt_share_public = "שתף לכולם"
+txt_share_public_en = "public"
+txt_share_edit = "עריכה"
+txt_share_edit_en = "edit"
+txt_share_view = "צפייה"
+txt_share_view_en = "view"
 
 
 # state for conv handler
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
 USER_QUERY, TRY_AGAIN = range(2)
 GET_NEW_VALUE, GET_DELETE_RECIPE = range(2)
+SHARE_PERMISSIONS, SHARE = range(2)
+
 
 add_conv_handler = ConversationHandler(
     entry_points=[CallbackQueryHandler(add_recipe_callback, pattern=txt_add_recipe)],
@@ -95,5 +105,18 @@ edit_conv_handler = ConversationHandler(
     fallbacks=[CallbackQueryHandler(cancel, pattern=txt_cancel)],
 )
 
-
+share_conv_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(share_callback, pattern=txt_share_all or txt_share_single)],
+    states={
+        SHARE_PERMISSIONS: [
+            CallbackQueryHandler(share_permission_level, pattern=txt_share_link_en or txt_share_public_en)
+        ],
+        SHARE: [
+            CallbackQueryHandler(
+                share, pattern=txt_share_edit_en or txt_share_view_en
+            )
+        ]
+    },
+    fallbacks=[CallbackQueryHandler(cancel, pattern=txt_cancel)],
+)
 more_details_handler = CallbackQueryHandler(more_details, pattern=txt_more_details)
