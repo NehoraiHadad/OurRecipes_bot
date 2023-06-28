@@ -13,29 +13,29 @@ class DynamoDBHandler:
         self.dynamodb_client = boto3.resource("dynamodb")
         self.table = self.dynamodb_client.Table(table_name)
 
-    def get_item(self, key: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        response = self.table.get_item(Key=key)
-        return response["Item"] if "Item" in response else None
+    # def get_item(self, key: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    #     response = self.table.get_item(Key=key)
+    #     return response["Item"] if "Item" in response else None
 
-    def put_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        response = self.table.put_item(Item=item)
-        return response["Item"] if "Item" in response else None
+    # def put_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
+    #     response = self.table.put_item(Item=item)
+    #     return response["Item"] if "Item" in response else None
 
-    def scan(self, filter_expression) -> List[Dict[str, Any]]:
-        response = self.table.scan(FilterExpression=filter_expression)
-        return response["Items"]
+    # def scan(self, filter_expression) -> List[Dict[str, Any]]:
+    #     response = self.table.scan(FilterExpression=filter_expression)
+    #     return response["Items"]
 
-    def update_item(
-        self,
-        key: Dict[str, Any],
-        update_expression: str,
-        expression_attribute_values: Dict[str, Any],
-    ) -> None:
-        self.table.update_item(
-            Key=key,
-            UpdateExpression=update_expression,
-            ExpressionAttributeValues=expression_attribute_values,
-        )
+    # def update_item(
+    #     self,
+    #     key: Dict[str, Any],
+    #     update_expression: str,
+    #     expression_attribute_values: Dict[str, Any],
+    # ) -> None:
+    #     self.table.update_item(
+    #         Key=key,
+    #         UpdateExpression=update_expression,
+    #         ExpressionAttributeValues=expression_attribute_values,
+    #     )
 
     def delete_item(self, key: Dict[str, Any]) -> None:
         return self.table.delete_item(Key=key)
@@ -56,7 +56,7 @@ class UserHandler(DynamoDBHandler):
             if shared_recipes:
                 existing_user["shared_recipes"].extend(shared_recipes)
             existing_user["last_seen"] = date_string
-            response = self.put_item(existing_user)
+            response = self.table.put_item(Item = existing_user)
             return response
         else:
             item = {
@@ -66,9 +66,7 @@ class UserHandler(DynamoDBHandler):
                 "shared_recipes": shared_recipes,
                 "join_in": date_string,
             }
-            response = self.put_item(item)
-
-            print(response)
+            response = self.table.put_item(item)
 
             return response
 
@@ -108,7 +106,7 @@ class UserHandler(DynamoDBHandler):
                 expression_attribute_values = {
                     ":accessible_recipes": accessible_recipes
                 }
-                self.update_item(key, update_expression, expression_attribute_values)
+                self.table.update_item(key, update_expression, expression_attribute_values)
 
 
 class RecipeHandler(DynamoDBHandler):
@@ -145,7 +143,7 @@ class RecipeHandler(DynamoDBHandler):
         user_handler = UserHandler("users")
         user_handler.remove_accessed_recipe(user_id, recipe_id)
 
-        return self.delete_item(recipe_id)
+        return self.table.delete_item(recipe_id)
 
     def update_recipe(
         self, recipe_id: str, update_data: Dict[str, Any]
@@ -157,7 +155,7 @@ class RecipeHandler(DynamoDBHandler):
         expression_attribute_values = {
             f":{key}": value for key, value in update_data.items()
         }
-        return self.update_item(key, update_expression, expression_attribute_values)
+        return self.table.update_item(key, update_expression, expression_attribute_values)
 
     def search_recipes_by_name(
         self, recipe_ids: List[str], search_query: str
@@ -176,7 +174,7 @@ class RecipeHandler(DynamoDBHandler):
         return matching_recipes
 
     def make_public(self, recipe_id: str) -> None:
-        self.update_item(
+        self.table.update_item(
             recipe_id,
             "set is_public = :t",
             {":t": True},
@@ -188,11 +186,14 @@ class RecipeHandler(DynamoDBHandler):
             self.make_public(recipe["recipe_id"])
 
     def fetch_public_recipes(self) -> List[Dict[str, Any]]:
-        filter_expression = Key("is_public").eq(True)
-        return self.scan(filter_expression)
+        response = self.table.scan()
+        public_recipes = [item for item in response['Items'] if item.get('is_public', False)]
+
+        return public_recipes
 
 
-class PermissionsHandler(DynamoDBHandler):
+
+class SharesHandler(DynamoDBHandler):
     def save_share_link(
         self,
         unique_id: str,
@@ -214,17 +215,17 @@ class PermissionsHandler(DynamoDBHandler):
             ), "Recipe id must be provided when all_recipes is False"
             item["recipe_id"] = recipe_id
 
-        self.put_item(self.permissions_table, item)
+        self.table.put_item(self.permissions_table, item)
 
     def fetch_share_info(self, unique_id: str) -> Optional[Dict[str, Any]]:
-        item = self.get_item(self.permissions_table, {"unique_id": unique_id})
+        item = self.table.get_item(self.permissions_table, {"unique_id": unique_id})
         return item if item else None
 
     def add_share_access(self, unique_id: str, user_id: str):
         key = {"unique_id": unique_id}
 
         # Fetch the existing item
-        item = self.get_item(self.permissions_table, key)
+        item = self.table.get_item(self.permissions_table, key)
         
         if 'user_id_shared' in item:
             if user_id not in item['user_id_shared']:
@@ -235,5 +236,5 @@ class PermissionsHandler(DynamoDBHandler):
         # Update the item in the table
         update_expression = "SET user_id_shared = :u"
         expression_attribute_values = {":u": item['user_id_shared']}
-        self.update_item(self.permissions_table, key, update_expression, expression_attribute_values)
+        self.table.update_item(self.permissions_table, key, update_expression, expression_attribute_values)
 

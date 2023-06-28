@@ -40,6 +40,9 @@ txt_delete_recipe = "מחק מתכון⁉"
 txt_delete = "מחק"
 txt_more_details = "פרטים נוספים"
 txt_share_recipe = "שיתוף"
+txt_share_button_en_1 = "b-share-1"
+txt_share_button_en_2 = "b-share-2"
+txt_share_button_en_3 = "b-share-3"
 txt_share_single = "share single"
 txt_share_all = "share all"
 txt_share_link = "יצירת לינק"
@@ -106,14 +109,14 @@ edit_conv_handler = ConversationHandler(
 )
 
 share_conv_handler = ConversationHandler(
-    entry_points=[CallbackQueryHandler(share_callback, pattern=txt_share_all or txt_share_single)],
+    entry_points=[CallbackQueryHandler(share_callback, pattern=txt_share_button_en_1)],
     states={
         SHARE_PERMISSIONS: [
-            CallbackQueryHandler(share_permission_level, pattern=txt_share_link_en or txt_share_public_en)
+            CallbackQueryHandler(share_permission_level, pattern=txt_share_button_en_2)
         ],
         SHARE: [
             CallbackQueryHandler(
-                share, pattern=txt_share_edit_en or txt_share_view_en
+                share, pattern=txt_share_button_en_3
             )
         ]
     },

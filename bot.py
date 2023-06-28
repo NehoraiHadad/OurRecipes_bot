@@ -10,13 +10,14 @@ from handlers import(
     edit_conv_handler,
     search_conv_handler,
     add_conv_handler,
-    more_details_handler
+    more_details_handler,
+    share_conv_handler
 )
 
 from models import (
     cancel,
     search_recipe_callback,
-    edit_recipe_callback
+    edit_recipe_callback,
 )
 
 # api_token = os.environ.get('TELEGRAM_API_TOKEN')
@@ -49,6 +50,7 @@ def main():
     application.add_handler(search_conv_handler)
     application.add_handler(edit_conv_handler)
     application.add_handler(more_details_handler)
+    application.add_handler(share_conv_handler)
     application.add_handler(CallbackQueryHandler(search_recipe_callback, pattern=txt_try_again))
     application.add_handler(CallbackQueryHandler(edit_recipe_callback, pattern=txt_edit_recipe))
     application.add_handler(CallbackQueryHandler(cancel, pattern=txt_cancel))
