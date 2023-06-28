@@ -42,8 +42,8 @@ txt_share_recipe = "שיתוף"
 txt_share_button_en_1 = "b-share-1"
 txt_share_button_en_2 = "b-share-2"
 txt_share_button_en_3 = "b-share-3"
-txt_share_single = "share_single"
-txt_share_all = "share_all"
+txt_share_single = "share-single"
+txt_share_all = "share-all"
 txt_share_link = "יצירת לינק"
 txt_share_link_en = "link"
 txt_share_public = "שתף לכולם"
@@ -146,7 +146,7 @@ async def share_button(is_all_or_single, recipe_id=None):
     return InlineKeyboardButton(
         txt_share_recipe,
         callback_data= txt_share_button_en_1
-        + ("_" + recipe_id if recipe_id is not None else "") + "_" + is_all_or_single,
+        + "_" + is_all_or_single + ("_" + recipe_id if recipe_id is not None else ""),
     )
 
 
@@ -173,6 +173,7 @@ def share_buttons_permissions(unique_id, link_ot_public):
 
 # commends
 async def start(update, context):
+    print("start    -   - --  -   strat  == =   = =")
     user_id = str(update.message.from_user.id)
     username = update.effective_user.first_name
     context.user_data["user_id"] = user_id
@@ -181,20 +182,18 @@ async def start(update, context):
 
     if context.args:
         unique_id = context.args[0]
-        share_info = await shares_handler.fetch_share_info(unique_id)
-        if share_info["user_id"]:
-            if share_info["user_id"] == user_id:
-                update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
-                return
-            if share_info["recipe_id"] or share_info["all_recipes"]:
-                # TO DO - FIX
-                await shares_handler.add_share_access(unique_id, user_id)
-                shared_recipes.append(unique_id)
-                await update.message.reply_text(
-                    "שותפת עם מתכון!"
-                    if share_info["recipe_id"]
-                    else "שותפת עם מלא מתכונים!"
-                )
+        share_info = shares_handler.fetch_share_info(unique_id)["Item"]
+        if share_info["user_id"] == user_id:
+            await update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
+        elif share_info["recipe_id"] or share_info["all_recipes"]:
+            # TO DO - FIX
+            shares_handler.add_share_access(unique_id, user_id)
+            shared_recipes.append(unique_id)
+            await update.message.reply_text(
+                "שותפת עם מתכון!"
+                if share_info["recipe_id"]
+                else "שותפת עם מלא מתכונים!"
+            )
 
     response = user_handler.register_user(user_id, username, shared_recipes)
 
@@ -670,27 +669,29 @@ async def share_callback(update, context):
     query = update.callback_query
     query.answer()
 
+    unique_id = str(uuid.uuid4())
     sharing_info = {
+        "unique_id": unique_id,
+        "user_id": str(update.effective_user.id),
         "all_recipes": False,
         "recipe_id": "",
         "link_or_public": "",
-        "Permission_level": "view",
+        "permission_level": "view",
     }
 
     query_data = query.data.split("_")
 
     # all user recipes or single recipe
-    is_all_or_single = query_data[0]
+    is_all_or_single = query_data[1]
 
-    unique_id = str(uuid.uuid4())
     if "share" not in context.user_data:
         context.user_data["share"] = {}
 
     if is_all_or_single == txt_share_all:
-        sharing_info = {"all_recipes": True}
+        sharing_info["all_recipes"] = True
     else:
-        recipe_id = query_data[1]
-        sharing_info = {"recipe_id": recipe_id}
+        recipe_id = query_data[2]
+        sharing_info["recipe_id"] = recipe_id
 
     context.user_data["share"][unique_id] = sharing_info
 
@@ -712,11 +713,11 @@ async def share_permission_level(update, context):
     unique_id = query_data[1]
     if query_data[2] == txt_share_link_en:
         link = query_data[2]
-        context.user_data["share"][unique_id] = {"link_or_public": link}
+        context.user_data["share"][unique_id]["link_or_public"] = link
         text = "הכי טוב לשתף כמה שטוב לך :)\n\nכעת יש לבחור את רמת ההרשאות המתאימה לך.\n*צפייה* או *עריכה*.\n(בכל מקרה לאף אחד מלבדך לא ניתן את האפשרות למחוק מתכון)"
     else:
         public = query_data[2]
-        context.user_data["share"][unique_id] = {"link_or_public": public}
+        context.user_data["share"][unique_id]["link_or_public"] = public
         text = "במצב שבו משתפים לכולם האפשרות גישה שניתנת היא לצפייה בלבד"
 
     await query.edit_message_text(
@@ -737,16 +738,16 @@ async def share(update, context):
     unique_id = query_data[1]
     Permission_level = query_data[2]
 
-    context.user_data["share"][unique_id] = {"Permission_level": Permission_level}
+    context.user_data["share"][unique_id]["permission_level"] = Permission_level
 
     user_id = str(update.effective_user.id)
 
     share_info = context.user_data["share"][unique_id]
     print(share_info)
     # Save the unique_id in the database
-    shares_handler.save_share_link(
-        unique_id,
-        user_id,
+    shares_handler.save_share_info(
+        share_info["unique_id"],
+        share_info["user_id"],
         share_info["permission_level"],
         share_info["all_recipes"],
         share_info["recipe_id"],
@@ -802,7 +803,7 @@ async def update_accessable_recipes(update, context):
     shared_recipe_permissions = {}
 
     for shared_recipe_info in shared_recipes_info:
-        shared_recipe_info = shares_handler.fetch_share_info(shared_recipe_info)
+        shared_recipe_info = shares_handler.fetch_share_info(shared_recipe_info)["Item"]
         if shared_recipe_info:
             if shared_recipe_info["all_recipes"]:
                 user_shared_recipes = user_handler.fetch_owned_recipes(
