@@ -40,21 +40,26 @@ class UserHandler(DynamoDBHandler):
             item = {
                 "user_id": user_id,
                 "username": username,
+                "owned_recipes": [],
                 "shared_recipes": shared_recipes,
                 "join_in": date_string,
             }
-            response = self.table.put_item(item)
+            response = self.table.put_item(Item = item)
 
             return response
 
     def add_accessible_recipe(self, user_id: str, recipe_id: str) -> Dict[str, Any]:
         response = self.table.update_item(
             Key={"user_id": user_id},
-            UpdateExpression="SET accessible_recipes = list_append(accessible_recipes, :recipe)",
-            ExpressionAttributeValues={":recipe": [recipe_id]},
+            UpdateExpression="SET owned_recipes = list_append(if_not_exists(owned_recipes, :empty_list), :recipe)",
+            ExpressionAttributeValues={
+                ":recipe": [recipe_id],
+                ":empty_list": []
+            },
             ReturnValues="ALL_NEW",
         )
         return response["Attributes"]
+
 
     def fetch_owned_recipes(self, user_id: str) -> List[str]:
         response = self.table.get_item(Key={"user_id": user_id})
@@ -135,7 +140,7 @@ class RecipeHandler(DynamoDBHandler):
             f":{key}": value for key, value in update_data.items()
         }
         return self.table.update_item(
-            key, update_expression, expression_attribute_values
+            Key = key, UpdateExpression = update_expression, ExpressionAttributeValues = expression_attribute_values
         )
 
     def search_recipes_by_name(
@@ -208,7 +213,7 @@ class SharesHandler(DynamoDBHandler):
         key = {"unique_id": unique_id}
 
         # Fetch the existing item
-        item = self.table.get_item(Key=key)
+        item = self.table.get_item(Key=key)["Item"]
 
         if "user_id_shared" in item:
             if user_id not in item["user_id_shared"]:

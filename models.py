@@ -7,6 +7,7 @@ from telegram import (
 
 from telegram.ext import ConversationHandler
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 
 import uuid
 import io
@@ -74,7 +75,7 @@ async def init_buttons():
 
 def edit_buttons(context, recipe_id):
     recipe = context.user_data[recipe_id]
-    if recipe["created_by"] == context.user_date["user_id"]:
+    if recipe["created_by"] == context.user_data["user_id"]:
         bottons = (
             [
                 InlineKeyboardButton(
@@ -186,7 +187,6 @@ async def start(update, context):
         if share_info["user_id"] == user_id:
             await update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
         elif share_info["recipe_id"] or share_info["all_recipes"]:
-            # TO DO - FIX
             shares_handler.add_share_access(unique_id, user_id)
             shared_recipes.append(unique_id)
             await update.message.reply_text(
@@ -220,28 +220,22 @@ async def unknown(update, context):
 async def display_recipe(update, context, recipe, is_shared=False, is_public=False):
     context.user_data[recipe["recipe_id"]] = recipe
 
-    # recipe_ingredients_list = [
-    #     ingredient.strip() for ingredient in recipe["ingredients"].split(",")
-    # ]
     formatted_ingredients = "\n".join(
         [
             f"{index+1}\.  {ingredient}"
             for index, ingredient in enumerate(recipe["ingredients"])
         ]
     )
-
-    recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*\n{formatted_ingredients}\n\n*הוראות:*\n{recipe["instructions"]}'
+    recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*\n{formatted_ingredients}\n\n*הוראות:*\n{escape_markdown(recipe["instructions"], 2)}'
     
     message = None
     if recipe["photo_url"]:
-        print (recipe["photo_url"])
         photo = download_photo_from_s3(recipe["photo_url"])
-        print(photo)
         message = await context.bot.send_photo(
             update.effective_chat.id,
             photo=photo,
             caption=recipe_str,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.MARKDOWN_V2,
             # TO DO - fix the reply_markup for owner and public
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -252,13 +246,13 @@ async def display_recipe(update, context, recipe, is_shared=False, is_public=Fal
                     [await share_button(recipe["recipe_id"], txt_share_single)],
                 ],
             )
-            if not is_shared or not is_public
+            if not is_shared and not is_public
             else None,
         )
     else:
         message = await update.message.reply_text(
             recipe_str,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
@@ -268,7 +262,7 @@ async def display_recipe(update, context, recipe, is_shared=False, is_public=Fal
                     [await share_button(recipe["recipe_id"], txt_share_single)],
                 ],
             )
-            if not is_shared or not is_public
+            if not is_shared and not is_public
             else None,
         )
 
@@ -479,7 +473,7 @@ async def edit_recipe_callback(update, context):
     print(recipe_id)
     await query.message.reply_text(
         text="אז מה לערוך?",
-        reply_markup=InlineKeyboardMarkup(edit_buttons(recipe_id)),
+        reply_markup=InlineKeyboardMarkup(edit_buttons(context, recipe_id)),
     )
     message_id = query.message.message_id
     context.user_data["message_id"] = message_id
@@ -644,24 +638,22 @@ async def more_details(update, context):
     else:
         str_modified = "המתכון לא עבר שינוי"
 
-    created_by = datetime.datetime.strptime(recipe["recipe_created"], date_format)
-    more_details_str = (
-        f"\n\n*תאריך הוספה:*  {created_by}\n\n*תאריך שינוי:*  {str_modified}"
-    )
+    created_by = escape_markdown(str(datetime.datetime.strptime(recipe["recipe_created"], date_format)), 2)
+    more_details_str = f"\n\n*תאריך הוספה:*  {created_by}\n\n*תאריך שינוי:*  {str_modified}"
 
     if query.message.photo:
         caption_bold = add_words_bold(query.message.caption, bold_words)
         await query.message.edit_caption(
             caption=f"{caption_bold}{more_details_str}",
             reply_markup=InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]]),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
     else:
         text_bold = add_words_bold(query.message.text, bold_words)
         await query.message.edit_text(
             text=f"{text_bold}{more_details_str}",
-            reply_markup=InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]]),
-            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[await edit_recipe_button(recipe_id)]]),
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
 
 
@@ -725,7 +717,7 @@ async def share_permission_level(update, context):
         reply_markup=InlineKeyboardMarkup(
             [[share_buttons_permissions(unique_id, query_data[1])], [cancel_button]]
         ),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
     return SHARE
 
@@ -788,7 +780,7 @@ async def share_link(update, context, unique_id):
     share_link = f"`https://t.me/{context.bot.username}?start={unique_id}`"
 
     await query.edit_message_text(
-        f"הנה הקישור לשיתוף: {share_link}", parse_mode=ParseMode.MARKDOWN
+        f"הנה הקישור לשיתוף: {share_link}", parse_mode=ParseMode.MARKDOWN_V2
     )
 
 
@@ -812,7 +804,7 @@ async def update_accessable_recipes(update, context):
                 shared_recipes.extend(user_shared_recipes)
 
                 for recipe in user_shared_recipes:
-                    shared_recipe_permissions[recipe["recipe_id"]] = shared_recipe_info[
+                    shared_recipe_permissions[recipe] = shared_recipe_info[
                         "permission_level"
                     ]
 
@@ -859,7 +851,7 @@ def inline_query(update, context):
             id=recipe["recipe_id"],
             title=recipe["recipe_name"],
             input_message_content=InputTextMessageContent(
-                message_text=recipe_str, parse_mode="Markdown"
+                message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
             ),
             thumb_url="https://picsum.photos/200/300",
         )
