@@ -220,6 +220,11 @@ async def unknown(update, context):
 async def display_recipe(update, context, recipe, is_shared=False, is_public=False):
     context.user_data[recipe["recipe_id"]] = recipe
 
+    if type(recipe["ingredients"]) != list:
+        recipe["ingredients"] = [
+            ingredient.strip() for ingredient in recipe["ingredients"].split(",")
+        ]
+        
     formatted_ingredients = "\n".join(
         [
             f"{index+1}\.  {ingredient}"
@@ -354,6 +359,7 @@ async def get_instructions(update, context):
     photo_data = context.user_data["recipe_photo"]
 
     recipe_id = str(uuid.uuid4())
+    # DO TO - FIX NONE FHOTOS
     photo_url = upload_photo_to_s3(photo_data, recipe_id)
 
     current_date = datetime.datetime.now()

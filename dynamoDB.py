@@ -13,10 +13,6 @@ class DynamoDBHandler:
         self.dynamodb_client = boto3.resource("dynamodb")
         self.table = self.dynamodb_client.Table(table_name)
 
-    def delete_item(self, key: Dict[str, Any]) -> None:
-        return self.table.delete_item(Key=key)
-
-
 class UserHandler(DynamoDBHandler):
     def register_user(
         self, user_id: str, username: str, shared_recipes: Optional[List[str]]
@@ -44,7 +40,7 @@ class UserHandler(DynamoDBHandler):
                 "shared_recipes": shared_recipes,
                 "join_in": date_string,
             }
-            response = self.table.put_item(Item = item)
+            response = self.table.put_item(Item=item)
 
             return response
 
@@ -52,14 +48,10 @@ class UserHandler(DynamoDBHandler):
         response = self.table.update_item(
             Key={"user_id": user_id},
             UpdateExpression="SET owned_recipes = list_append(if_not_exists(owned_recipes, :empty_list), :recipe)",
-            ExpressionAttributeValues={
-                ":recipe": [recipe_id],
-                ":empty_list": []
-            },
+            ExpressionAttributeValues={":recipe": [recipe_id], ":empty_list": []},
             ReturnValues="ALL_NEW",
         )
         return response["Attributes"]
-
 
     def fetch_owned_recipes(self, user_id: str) -> List[str]:
         response = self.table.get_item(Key={"user_id": user_id})
@@ -88,8 +80,10 @@ class UserHandler(DynamoDBHandler):
                 expression_attribute_values = {
                     ":accessible_recipes": accessible_recipes
                 }
-                self.table.update_item(
-                    key, update_expression, expression_attribute_values
+                return self.table.update_item(
+                    Key=key,
+                    UpdateExpression=update_expression,
+                    ExpressionAttributeValues=expression_attribute_values,
                 )
 
 
@@ -105,11 +99,14 @@ class RecipeHandler(DynamoDBHandler):
         recipe_created: str,
         recipe_modified: str,
     ) -> Dict[str, Any]:
+        recipe_ingredients_list = [
+            ingredient.strip() for ingredient in ingredients.split(",")
+        ]
         item = {
             "recipe_id": recipe_id,
             "created_by": user_id,
             "recipe_name": recipe_name,
-            "ingredients": ingredients,
+            "ingredients": recipe_ingredients_list,
             "instructions": instructions,
             "photo_url": photo,
             "recipe_created": recipe_created,
@@ -127,7 +124,7 @@ class RecipeHandler(DynamoDBHandler):
         user_handler = UserHandler("users")
         user_handler.remove_accessed_recipe(user_id, recipe_id)
 
-        return self.table.delete_item(recipe_id)
+        return self.table.delete_item(Key={"recipe_id": recipe_id})
 
     def update_recipe(
         self, recipe_id: str, update_data: Dict[str, Any]
@@ -140,7 +137,9 @@ class RecipeHandler(DynamoDBHandler):
             f":{key}": value for key, value in update_data.items()
         }
         return self.table.update_item(
-            Key = key, UpdateExpression = update_expression, ExpressionAttributeValues = expression_attribute_values
+            Key=key,
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_attribute_values,
         )
 
     def search_recipes_by_name(
@@ -161,9 +160,9 @@ class RecipeHandler(DynamoDBHandler):
 
     def make_public(self, recipe_id: str) -> None:
         self.table.update_item(
-            recipe_id,
-            "set is_public = :t",
-            {":t": True},
+            Key=recipe_id,
+            UpdateExpression="set is_public = :t",
+            ExpressionAttributeValues={":t": True},
         )
 
     def make_all_public(self, user_id: str) -> None:
