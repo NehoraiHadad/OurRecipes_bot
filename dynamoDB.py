@@ -1,6 +1,5 @@
 import boto3
-from boto3.dynamodb.conditions import Key
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 import datetime
 
 region_name = "us-east-1"
@@ -28,7 +27,7 @@ class UserHandler(DynamoDBHandler):
             existing_user["username"] = username
             if shared_recipes:
                 existing_user["shared_recipes"] = existing_user.get(
-                    "shared_recipes", set()
+                    "shared_recipes", []
                 )
                 existing_user["shared_recipes"].add(shared_recipes)
             existing_user["last_seen"] = date_string
@@ -40,9 +39,10 @@ class UserHandler(DynamoDBHandler):
                 "user_id": user_id,
                 "username": username,
                 "join_in": date_string,
+                "all_recipes_public": False
             }
             if shared_recipes:
-                item["shared_recipes"] = set()
+                item["shared_recipes"] = []
                 item["shared_recipes"].add(shared_recipes)
 
             response = self.table.put_item(Item=item)
@@ -52,38 +52,85 @@ class UserHandler(DynamoDBHandler):
     def add_owned_recipe(self, user_id: str, recipe_id: str) -> Dict[str, Any]:
         response = self.table.update_item(
             Key={"user_id": user_id},
-            UpdateExpression="ADD owned_recipes :recipe",
-            ExpressionAttributeValues={":recipe": {recipe_id}},
+            UpdateExpression="SET owned_recipes = list_append(if_not_exists(owned_recipes, :empty_list), :recipe)",
+            ExpressionAttributeValues={
+                ":recipe": [recipe_id],
+                ":empty_list": [],
+            },
             ReturnValues="ALL_NEW",
         )
         return response["Attributes"]
 
-    def fetch_owned_recipes(self, user_id: str) -> set[str]:
+
+    def fetch_owned_recipes(self, user_id: str) -> list[str]:
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item", {})
-        owned_recipes = item.get("owned_recipes", set())
+        owned_recipes = item.get("owned_recipes", [])
 
         return owned_recipes
 
-    def fetch_shared_recipes(self, user_id: str) -> set[str]:
+    def fetch_shared_recipes(self, user_id: str) -> list[str]:
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item", {})
-        shared_recipes = item.get("shared_recipes", set())
+        shared_recipes = item.get("shared_recipes", [])
 
         return shared_recipes
 
     def remove_owned_recipe(self, user_id: str, recipe_id: str):
-        key = {"user_id": user_id}
-        update_expression = "DELETE owned_recipes :owned_recipes"
-        expression_attribute_values = {":owned_recipes": {recipe_id}}
-        return self.table.update_item(
-            Key=key,
-            UpdateExpression=update_expression,
-            ExpressionAttributeValues=expression_attribute_values,
+        response = self.table.get_item(Key={"user_id": user_id})
+        owned_recipes = response["Item"]["owned_recipes"]
+
+        if recipe_id in owned_recipes:
+            owned_recipes.remove(recipe_id)
+
+        update_response = self.table.update_item(
+            Key={"user_id": user_id},
+            UpdateExpression="SET owned_recipes = :owned_recipes",
+            ExpressionAttributeValues={":owned_recipes": owned_recipes},
         )
+
+        return update_response
+
+    
+    def remove_share_recipe(self, user_id: str, unique_id: str):
+        response = self.table.get_item(Key={"user_id": user_id})
+        if 'Item' in response:
+            shared_recipes = response['Item'].get('shared_recipes', [])
+            if unique_id in shared_recipes:
+                shared_recipes.remove(unique_id)
+                return self.table.update_item(
+                    Key={"user_id": user_id},
+                    UpdateExpression="SET shared_recipes = :unique_id",
+                    ExpressionAttributeValues={":unique_id": unique_id}
+                )
+            
+    def update_all_recipes_public(self, user_id: str, all_recipes_public: bool):
+        response = self.table.update_item(
+            Key={"user_id": user_id},
+            UpdateExpression="SET all_recipes_public = :arp",
+            ExpressionAttributeValues={":arp": all_recipes_public},
+            ReturnValues="ALL_NEW",
+        )
+        return response["Attributes"]
+    
+    def is_all_public(self, user_id: str) -> bool:
+        response = self.table.get_item(Key={"user_id": user_id})
+
+        if 'Item' in response and 'all_recipes_public' in response['Item']:
+            return response['Item']['all_recipes_public']
+        
+        return False
+
 
 
 class RecipeHandler(DynamoDBHandler):
+    def get_recipe_by_id(self, recipe_id: str) -> Dict[str, Any]:
+        response = self.table.get_item(Key={"recipe_id": recipe_id}) 
+        if "Item" in response:
+            return response["Item"] 
+        else: 
+            return None
+
     def add_recipe(
         self,
         recipe_id: str,
@@ -176,6 +223,12 @@ class RecipeHandler(DynamoDBHandler):
         ]
 
         return public_recipes
+    
+    def is_recipe_public(self, recipe_id: str) -> bool:
+        recipe = self.get_recipe_by_id(recipe_id)
+        
+        return recipe.get("is_public", False)
+
 
 
 class SharesHandler(DynamoDBHandler):

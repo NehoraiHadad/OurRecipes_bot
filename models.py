@@ -725,6 +725,19 @@ async def more_details(update, context):
             parse_mode=ParseMode.MARKDOWN_V2,
         )
 
+async def share_callback_1(update, context):
+    query = update.callback_query
+    query.answer()
+
+    query_data = query.data.split("_")
+    # all recipes or single recipe
+    is_all_or_single = query_data[1]
+
+    if "share" not in context.user_data:
+        context.user_data["share"] = {}
+    if is_all_or_single == txt_share_all:
+        is_all_public = user_handler.is_all_public
+        sharing_info["all_recipes"] = True
 
 async def share_callback(update, context):
     query = update.callback_query
@@ -743,7 +756,7 @@ async def share_callback(update, context):
 
     query_data = query.data.split("_")
 
-    # all user recipes or single recipe
+    # all recipes or single recipe
     is_all_or_single = query_data[1]
 
     if "share" not in context.user_data:
@@ -831,6 +844,7 @@ async def share_public(update, context, unique_id):
 
     if share_info["all_recipes"]:
         recipe_handler.make_all_public(user_id)
+        user_handler.update_all_recipes_public(user_id, True)
 
         await query.edit_message_text("כל המתכונים שלך ציבוריים עכשיו!\n נחמד מצידך 🙂")
 
@@ -861,7 +875,7 @@ async def update_accessable_recipes(update, context):
     owned_recipes = user_handler.fetch_owned_recipes(user_id)
     shared_recipes_info = user_handler.fetch_shared_recipes(user_id)
 
-    shared_recipes = set()
+    shared_recipes = []
     shared_recipe_permissions = {}
 
     for shared_info in shared_recipes_info:
@@ -871,7 +885,7 @@ async def update_accessable_recipes(update, context):
                 user_shared_recipes = user_handler.fetch_owned_recipes(
                     shared_info["user_id"]
                 )
-                shared_recipes.update(user_shared_recipes)
+                shared_recipes.extend(user_shared_recipes)
 
                 for recipe in user_shared_recipes:
                     if recipe not in shared_recipe_permissions:
@@ -879,7 +893,7 @@ async def update_accessable_recipes(update, context):
                             "permission_level"
                         ]
             else:
-                shared_recipes.add(shared_info["recipe_id"])
+                shared_recipes.append(shared_info["recipe_id"])
                 shared_recipe_permissions[shared_info["recipe_id"]] = (
                     shared_info["permission_level"]
                     if shared_info["permission_level"] == "edit"
@@ -897,21 +911,15 @@ async def update_accessable_recipes(update, context):
 
     return owned_recipes, shared_recipes, public_recipes
 
-def revoke_share(self, unique_id: str) -> str:
-    share_info = shares_handler.fetch_share_info(unique_id)
+def revoke_share(unique_id: str) -> str:
+    share_info = shares_handler.fetch_share_info(unique_id)["Item"]
     if share_info:
         for user_id in share_info["user_id_shared"]:
-            revoke_user_access(user_id, share_info["recipe_id"])
+            user_handler.remove_share_recipe(user_id, unique_id)
         
         # Cancel old link
         shares_handler.revoke_share_access(unique_id)
         
-        # Generate and return new link
-        return self.generate_new_link(share_info["user_id"], share_info["recipe_id"], share_info["permission_level"])
-    else:
-        return None
-
-
 def local_search_recipes_by_name(recipes, user_query):
     matching_recipes = []
     for recipe in recipes:
