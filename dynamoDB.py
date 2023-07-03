@@ -13,6 +13,7 @@ class DynamoDBHandler:
         self.dynamodb_client = boto3.resource("dynamodb")
         self.table = self.dynamodb_client.Table(table_name)
 
+
 class UserHandler(DynamoDBHandler):
     def register_user(
         self, user_id: str, username: str, shared_recipes: Optional[str]
@@ -26,7 +27,9 @@ class UserHandler(DynamoDBHandler):
             existing_user = existing_user["Item"]
             existing_user["username"] = username
             if shared_recipes:
-                existing_user["shared_recipes"] = existing_user.get("shared_recipes", set())
+                existing_user["shared_recipes"] = existing_user.get(
+                    "shared_recipes", set()
+                )
                 existing_user["shared_recipes"].add(shared_recipes)
             existing_user["last_seen"] = date_string
             response = self.table.put_item(Item=existing_user)
@@ -39,8 +42,8 @@ class UserHandler(DynamoDBHandler):
                 "join_in": date_string,
             }
             if shared_recipes:
-                        item["shared_recipes"] = set()
-                        item["shared_recipes"].add(shared_recipes)
+                item["shared_recipes"] = set()
+                item["shared_recipes"].add(shared_recipes)
 
             response = self.table.put_item(Item=item)
 
@@ -55,15 +58,14 @@ class UserHandler(DynamoDBHandler):
         )
         return response["Attributes"]
 
-
-    def fetch_owned_recipes(self, user_id: str) -> List[str]:
+    def fetch_owned_recipes(self, user_id: str) -> set[str]:
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item", {})
         owned_recipes = item.get("owned_recipes", set())
 
         return owned_recipes
 
-    def fetch_shared_recipes(self, user_id: str) -> List[str]:
+    def fetch_shared_recipes(self, user_id: str) -> set[str]:
         response = self.table.get_item(Key={"user_id": user_id})
         item = response.get("Item", {})
         shared_recipes = item.get("shared_recipes", set())
@@ -73,9 +75,7 @@ class UserHandler(DynamoDBHandler):
     def remove_owned_recipe(self, user_id: str, recipe_id: str):
         key = {"user_id": user_id}
         update_expression = "DELETE owned_recipes :owned_recipes"
-        expression_attribute_values = {
-            ":owned_recipes": {recipe_id}
-        }
+        expression_attribute_values = {":owned_recipes": {recipe_id}}
         return self.table.update_item(
             Key=key,
             UpdateExpression=update_expression,
@@ -152,15 +152,13 @@ class RecipeHandler(DynamoDBHandler):
                     ":query": search_query,
                 },
             )
-            print(response)
             if response["Items"]:
                 matching_recipes.append(response["Items"][0])
         return matching_recipes
 
-
     def make_public(self, recipe_id: str) -> None:
         self.table.update_item(
-            Key=recipe_id,
+            Key={"recipe_id": recipe_id},
             UpdateExpression="set is_public = :t",
             ExpressionAttributeValues={":t": True},
         )
@@ -169,7 +167,7 @@ class RecipeHandler(DynamoDBHandler):
         User_handler = UserHandler("users")
         user_recipes = User_handler.fetch_owned_recipes(user_id)
         for recipe in user_recipes:
-            self.make_public(recipe["recipe_id"])
+            self.make_public(recipe)
 
     def fetch_public_recipes(self) -> List[Dict[str, Any]]:
         response = self.table.scan()
@@ -213,10 +211,16 @@ class SharesHandler(DynamoDBHandler):
         key = {"unique_id": unique_id}
 
         update_expression = "ADD user_id_shared :u"
-        expression_attribute_values = {":u": {user_id}} 
+        expression_attribute_values = {":u": {user_id}}
         self.table.update_item(
             Key=key,
             UpdateExpression=update_expression,
             ExpressionAttributeValues=expression_attribute_values,
         )
 
+    def revoke_share_access(self, unique_id: str):
+        self.table.update_item(
+            Key={"unique_id": unique_id},
+            UpdateExpression="SET status = :cancelled",
+            ExpressionAttributeValues={":cancelled": "cancelled"},
+        )
