@@ -121,7 +121,14 @@ class UserHandler(DynamoDBHandler):
         
         return False
 
-
+    def get_user_shares(self, user_id: str) -> List[Dict[str, Any]]:
+        user = self.table.get_item(Key={"user_id": user_id})["Item"]
+        user_shared_ids = user.get("user_shared_ids", [])
+        shares = []
+        for unique_id in user_shared_ids:
+            share = self.shares_table.get_item(Key={"unique_id": unique_id})["Item"]
+            shares.append(share)
+        return shares
 
 class RecipeHandler(DynamoDBHandler):
     def get_recipe_by_id(self, recipe_id: str) -> Dict[str, Any]:

@@ -729,23 +729,15 @@ async def share_callback_1(update, context):
     query = update.callback_query
     query.answer()
 
+    user_id = str(update.effective_user.id)
     query_data = query.data.split("_")
     # all recipes or single recipe
     is_all_or_single = query_data[1]
 
-    if "share" not in context.user_data:
-        context.user_data["share"] = {}
-    if is_all_or_single == txt_share_all:
-        is_all_public = user_handler.is_all_public
-        sharing_info["all_recipes"] = True
 
-async def share_callback(update, context):
-    query = update.callback_query
-    query.answer()
 
-    unique_id = str(uuid.uuid4())
     sharing_info = {
-        "unique_id": unique_id,
+        "unique_id": "",
         "user_id": str(update.effective_user.id),
         "all_recipes": False,
         "recipe_id": "",
@@ -769,6 +761,50 @@ async def share_callback(update, context):
         sharing_info["recipe_id"] = recipe_id
 
     context.user_data["share"][unique_id] = sharing_info
+
+
+
+
+
+
+
+    user_shared_ids = user_handler.get_user_shares(user_id)
+    if "share" not in context.user_data:
+        context.user_data["share"] = {}
+    text = "ברוכים הבאים לתפריט השיתוף!\n המצב כרגע פה:\n\n"
+
+    if is_all_or_single == txt_share_all:
+        is_all_public = user_handler.is_all_public
+
+        text_public = "כל המתכונים שלך ציבוריים\.\n" if is_all_public else "כל המתכונים שלך פרטיים\.\n"
+        text += text_public
+
+        if user_shared_ids:
+            for sharing_info in user_shared_ids:
+                if sharing_info["all_recipes"] == True:
+                    share_link = f"`https://t.me/{context.bot.username}?start={sharing_info['unique_id']}`"
+                    text_link = f"יש לך כרגע לינק פעיל:\n\n{share_link}\n\nברמת הרשאות:{sharing_info['permission_level']}\n\nתוכל לבטל את הקישור על ידי תפריט הביטול או יצירת חלופי.\nבכל מקרה לא יתכנו שני קישורים פעילים באותה רמת הרשאות."
+                    text += text_link
+            
+            await query.message.reply_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(
+                    [share_buttons_link_or_public(sharing_info['unique_id']), [cancel_button]]
+                ),
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        else:
+            for sharing_info in user_shared_ids:
+                if sharing_info["recipe_id"] == recipe_id:
+                    share_link = f"`https://t.me/{context.bot.username}?start={sharing_info['unique_id']}`"
+                    text_link = f"יש לך כרגע לינק פעיל:\n\n{share_link}\n\nברמת הרשאות:{sharing_info['permission_level']}\n\nתוכל לבטל את הקישור על ידי תפריט הביטול או יצירת חלופי.\nבכל מקרה לא יתכנו שני קישורים פעילים באותה רמת הרשאות."
+                    text += text_link
+
+async def share_callback(update, context):
+    query = update.callback_query
+    query.answer()
+
+    unique_id = str(uuid.uuid4())
 
     await query.message.reply_text(
         "איך לשתף?\n\n*אפשרות* אחת לשתף לכולם\nאפשרות *אחרת* לשתף בעזרת קישור שניתן לשלוח למי שרוצים לשתף",
