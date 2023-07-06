@@ -120,6 +120,13 @@ class UserHandler(DynamoDBHandler):
             return response['Item']['all_recipes_public']
         
         return False
+    
+    def is_recipe_public(self, recipe_id: str) -> bool:
+        recipe = self.table.get_item(Key={"recipe_id": recipe_id}).get("Item", None)
+
+        if recipe and recipe.get("is_public", False):
+            return True
+        return False
 
     def get_user_shares(self, user_id: str) -> List[Dict[str, Any]]:
         user = self.table.get_item(Key={"user_id": user_id})["Item"]
