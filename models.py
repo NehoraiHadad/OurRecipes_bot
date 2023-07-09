@@ -52,7 +52,7 @@ txt_share_single = "share-single"
 txt_share_all = "share-all"
 txt_share_link = "יצירת לינק"
 txt_share_link_en = "link"
-txt_share_public = "הפוך לציבורי"
+txt_share_public = "ציבורי/פרטי"
 txt_share_public_en = "public"
 txt_share_edit = "עריכה"
 txt_share_edit_en = "edit"
@@ -211,8 +211,16 @@ def share_buttons_permissions(unique_id):
 
 def share_buttons_revoke_or_not():
     return [
-        InlineKeyboardButton("לבטל", callback_data=txt_share_button_revoke_or_not + "_" + txt_share_button_revoke),
-        InlineKeyboardButton("לשמור", callback_data=txt_share_button_revoke_or_not + "_" + txt_share_button_save),
+        InlineKeyboardButton(
+            "לבטל",
+            callback_data=txt_share_button_revoke_or_not
+            + "_"
+            + txt_share_button_revoke,
+        ),
+        InlineKeyboardButton(
+            "לשמור",
+            callback_data=txt_share_button_revoke_or_not + "_" + txt_share_button_save,
+        ),
     ]
 
 
@@ -229,7 +237,7 @@ async def start(update, context):
         share_info = shares_handler.fetch_share_info(unique_id)["Item"]
         if share_info["user_id"] == user_id:
             await update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
-        elif share_info["status"] == "cancelled":
+        elif share_info["link_status"] == "cancelled":
             await update.message.reply_text("השתמשת בלינק ישן\. תמיד אפשר לבקש חדש 😎")
         elif share_info["recipe_id"] or share_info["all_recipes"]:
             shares_handler.add_share_access(unique_id, user_id)
@@ -748,28 +756,45 @@ async def generate_text_for_share(
     context, active_sharing_infos, is_public, all_recipes, recipe_id=None
 ):
     text_public = (
-        "כל המתכונים שלך ציבוריים\.\n" if is_public else "כל המתכונים שלך פרטיים\.\n"
+        "\- " + "כל המתכונים שלך ציבוריים\.\n"
+        if is_public
+        else "כל המתכונים שלך פרטיים\.\n"
     )
     if not all_recipes:
-        text_public = "המתכון שלך ציבורי\.\n" if is_public else "המתכון שלך פרטי\.\n"
+        text_public = (
+            "\- " + "המתכון שלך ציבורי\.\n\n" if is_public else "המתכון שלך פרטי\.\n"
+        )
 
-    text_links = ""
-    for active_sharing_info in active_sharing_infos:
-        if (all_recipes and active_sharing_info["all_recipes"]) or (
-            not all_recipes and active_sharing_info["recipe_id"] == recipe_id
-        ):
-            share_link = f"`https://t.me/{context.bot.username}?start={active_sharing_info['unique_id']}`"
-            text_link = f"יש לך כרגע לינק פעיל:\n\n{share_link}\n\nברמת הרשאות:{active_sharing_info['permission_level']}\n\n"
-            text_links += text_link
-            context.user_data["links_share_revoke"][
-                active_sharing_info["permission_level"]
-            ] = active_sharing_info
-
-    return (
-        text_public
-        + text_links
-        + "ניתן להשתמש בקישור או לבטל אותו על ידי יצירת חלופי\.\nבכל מקרה לא יתכנו שני קישורים פעילים באותה רמת הרשאות\."
-    )
+    if active_sharing_infos:
+        text_links = ""
+        for active_sharing_info in active_sharing_infos:
+            if (all_recipes and active_sharing_info["all_recipes"]) or (
+                not all_recipes and active_sharing_info["recipe_id"] == recipe_id
+            ):
+                permission_level = (
+                    "צפייה"
+                    if active_sharing_info["permission_level"] == "view"
+                    else "עריכה"
+                )
+                share_link = f"`https://t.me/{context.bot.username}?start={active_sharing_info['unique_id']}`"
+                text_link = f"\- לינק פעיל:\n{share_link}\nברמת הרשאות: *{permission_level}*\n\n"
+                text_links += text_link
+                if "links_share_revoke" in context.user_data:
+                    context.user_data["links_share_revoke"][
+                        active_sharing_info["permission_level"]
+                    ] = active_sharing_info
+                else:
+                    context.user_data["links_share_revoke"] = {}
+                    context.user_data["links_share_revoke"][
+                        active_sharing_info["permission_level"]
+                    ] = active_sharing_info
+        if text_links:
+            return (
+                text_public
+                + text_links
+                + "ניתן להשתמש בקישור או לבטל אותו על ידי יצירת חלופי\.\nבכל מקרה לא יתכנו שני קישורים פעילים באותה רמת הרשאות\."
+            )
+    return text_public + "\- לא קיימים לינקים פעילים\."
 
 
 async def share_callback(update, context):
@@ -779,8 +804,7 @@ async def share_callback(update, context):
     unique_id = str(uuid.uuid4())
     user_id = str(update.effective_user.id)
     user_shared_ids = user_handler.get_user_shares(user_id)
-
-    text = "ברוכים הבאים לתפריט השיתוף\!\nהמצב כרגע פה:\n\n"
+    text = "ברוכים הבאים לתפריט השיתוף\!\n\nהמצב פה כרגע:\n"
 
     query_data = query.data.split("_")
 
@@ -801,13 +825,13 @@ async def share_callback(update, context):
         "recipe_id": "",
         "link_or_public": "",
         "permission_level": "view",
-        "status": "active",
+        "link_status": "active",
         "link_created": date_string,
     }
 
     if is_all_or_single == txt_share_all:
         new_sharing_info["all_recipes"] = True
-        is_public = user_handler.is_all_public
+        is_public = user_handler.is_all_public(user_id)
         text += await generate_text_for_share(
             context, user_shared_ids, is_public, all_recipes=True
         )
@@ -838,7 +862,7 @@ async def share_callback(update, context):
     return await query.message.reply_text(
         text
         + "\n\n"
-        + "איך לשתף?\n\n*אפשרות* אחת לשתף לכולם על ידי הפיכתו לציבורי\.\nאפשרות *אחרת* לשתף בעזרת קישור שניתן לשלוח למי שרוצים לשתף\.",
+        + "איך לשתף?\n\n*אפשרות* אחת לשתף לכולם על ידי הפיכה לציבורי\.\nאפשרות *אחרת* לשתף בעזרת קישור שניתן לשלוח למי שרוצים לשתף\.",
         reply_markup=InlineKeyboardMarkup(
             [share_buttons_link_or_public(unique_id), [cancel_button]]
         ),
@@ -851,7 +875,7 @@ async def share_public_state(update, context):
     query.answer()
 
     is_public = context.user_data["share"]["public"]["is_public"]
-    state = "ציבורי" if is_public else "פרטי"
+    state = "ציבורי" if not is_public else "פרטי"
 
     text = f"בטוח שתרצה להפוך ל{state}?"
 
@@ -884,7 +908,7 @@ async def share_togglt_public(update, context):
 
     else:
         if public_info["is_public"]:
-            recipe_handler.make_public(public_info["recipe_id"])
+            recipe_handler.revoke_public(public_info["recipe_id"])
             text = "המתכון שלך פרטי עכשיו"
         else:
             recipe_handler.make_public(public_info["recipe_id"])
@@ -916,10 +940,9 @@ async def share_permission_level(update, context):
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
     )
-    return SHARE
 
 
-async def share_link(update, context, unique_id):
+async def share_link(update, context):
     query = update.callback_query
     query.answer()
 
@@ -936,10 +959,11 @@ async def share_link(update, context, unique_id):
         new_sharing_info["unique_id"],
         new_sharing_info["user_id"],
         new_sharing_info["permission_level"],
+        new_sharing_info["link_status"],
         new_sharing_info["all_recipes"],
         new_sharing_info["recipe_id"],
-        new_sharing_info["status"],
     )
+    user_handler.add_user_shared(new_sharing_info["user_id"], unique_id)
 
     share_link = f"`https://t.me/{context.bot.username}?start={unique_id}`"
 
@@ -953,7 +977,6 @@ async def share_link(update, context, unique_id):
         and new_sharing_info["permission_level"]
         in context.user_data["links_share_revoke"]
     ):
-        # TO DO - bette solution
         context.user_data["links_share_revoke"]["link_revoke_ask"] = context.user_data[
             "links_share_revoke"
         ][new_sharing_info["permission_level"]]
@@ -977,18 +1000,20 @@ async def revoke_user_shared(update, context):
     user_ansuer = query_data[1]
 
     old_link = context.user_data["links_share_revoke"]["link_revoke_ask"]
-    if (
-        "links_share_revoke" in context.user_data
-        and "links_share_revoke" in context.user_data["links_share_revoke"]
-        and user_ansuer == "revoke"
-    ):
+    if user_ansuer == "revoke":
         shares_handler.revoke_share_access(old_link["unique_id"])
-        for user_id in old_link["user_id_shared"]:
-            user_handler.remove_share_recipe(user_id, old_link["unique_id"])
-        await query.edit_message_text(
-            "השיתוף בוטל בהצלחה",
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        if "user_id_shared" in old_link:
+            for user_id in old_link["user_id_shared"]:
+                user_handler.remove_share_recipe(user_id, old_link["unique_id"])
+            await query.edit_message_text(
+                "השיתוף בוטל בהצלחה",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        else:
+            await query.edit_message_text(
+                "לא היה למי לבטל 🙄",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
     else:
         shares_handler.revoke_share_access(old_link["unique_id"])
         await query.edit_message_text(

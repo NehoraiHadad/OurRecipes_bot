@@ -36,7 +36,7 @@ logging.basicConfig(
 # text
 txt_try_again = "לנסות שוב?🔄"
 txt_edit_recipe = "עריכת מתכון"
-txt_cancel = 'בטל🛑'
+txt_cancel = 'בטל 🛑'
 txt_more_details = "פרטים נוספים"
 
 

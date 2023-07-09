@@ -115,7 +115,6 @@ class UserHandler(DynamoDBHandler):
     
     def is_all_public(self, user_id: str) -> bool:
         response = self.table.get_item(Key={"user_id": user_id})
-
         if 'Item' in response and 'all_recipes_public' in response['Item']:
             return response['Item']['all_recipes_public']
         
@@ -127,14 +126,28 @@ class UserHandler(DynamoDBHandler):
         if recipe and recipe.get("is_public", False):
             return True
         return False
+    
+    def add_user_shared(self, user_id: str, unique_id: str):
+        self.table.update_item(
+            Key={"user_id": user_id},
+            UpdateExpression="SET user_shared_ids = list_append(if_not_exists(user_shared_ids, :empty_list), :unique_id)",
+            ExpressionAttributeValues={
+                ":unique_id": [unique_id],
+                ":empty_list": [],
+            },
+            ReturnValues="ALL_NEW",
+        )
 
     def get_user_shares(self, user_id: str) -> List[Dict[str, Any]]:
         user = self.table.get_item(Key={"user_id": user_id})["Item"]
         user_shared_ids = user.get("user_shared_ids", [])
+        shares_handler = SharesHandler("shares")
         shares = []
         for unique_id in user_shared_ids:
-            share = self.shares_table.get_item(Key={"unique_id": unique_id})["Item"]
-            shares.append(share)
+            share = shares_handler.table.get_item(Key={"unique_id": unique_id})
+            if "Item" in share:
+                if share["Item"]["link_status"] == "active":
+                    shares.append(share["Item"])
         return shares
 
 class RecipeHandler(DynamoDBHandler):
@@ -264,6 +277,7 @@ class SharesHandler(DynamoDBHandler):
         unique_id: str,
         user_id: str,
         permission_level: str,
+        link_status: str,
         all_recipes: bool = False,
         recipe_id: Optional[str] = None,
     ) -> None:
@@ -273,6 +287,7 @@ class SharesHandler(DynamoDBHandler):
             "permission_level": permission_level,
             "all_recipes": all_recipes,
             "recipe_id": "",
+            "link_status": link_status
         }
 
         if not all_recipes:
@@ -301,6 +316,6 @@ class SharesHandler(DynamoDBHandler):
     def revoke_share_access(self, unique_id: str):
         self.table.update_item(
             Key={"unique_id": unique_id},
-            UpdateExpression="SET status = :cancelled",
+            UpdateExpression="SET link_status = :cancelled",
             ExpressionAttributeValues={":cancelled": "cancelled"},
         )

@@ -30,7 +30,7 @@ from models import (
 txt_add_recipe = "הוסף מתכון חדש"
 txt_search_recipe = "חפש מתכון"
 
-txt_cancel = "בטל🛑"
+txt_cancel = "בטל 🛑"
 txt_try_again = "לנסות שוב?🔄"
 
 txt_edit_recipe = "עריכת מתכון"
@@ -126,7 +126,7 @@ share_permission_level_handler = CallbackQueryHandler(share_permission_level, pa
 
 share_link_handler = CallbackQueryHandler(share_link, pattern=txt_share_button_create_link_en)
 
-share_revoke_user_shared_handler = CallbackQueryHandler(revoke_user_shared, pattern=txt_share_button_create_link_en)
+share_revoke_user_shared_handler = CallbackQueryHandler(revoke_user_shared, pattern=txt_share_button_revoke_or_not)
 # ---- }
 
 more_details_handler = CallbackQueryHandler(more_details, pattern=txt_more_details)
