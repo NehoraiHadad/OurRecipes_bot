@@ -11,7 +11,12 @@ from handlers import(
     search_conv_handler,
     add_conv_handler,
     more_details_handler,
-    share_conv_handler
+    share_start_handler,
+    share_public_state_handler,
+    share_public_togglt_handler,
+    share_permission_level_handler,
+    share_link_handler,
+    share_revoke_user_shared_handler
 )
 
 from models import (
@@ -50,7 +55,14 @@ def main():
     application.add_handler(search_conv_handler)
     application.add_handler(edit_conv_handler)
     application.add_handler(more_details_handler)
-    application.add_handler(share_conv_handler)
+
+    application.add_handler(share_start_handler)
+    application.add_handler(share_public_state_handler)
+    application.add_handler(share_public_togglt_handler)
+    application.add_handler(share_permission_level_handler)
+    application.add_handler(share_link_handler)
+    application.add_handler(share_revoke_user_shared_handler)
+
     application.add_handler(CallbackQueryHandler(search_recipe_callback, pattern=txt_try_again))
     application.add_handler(CallbackQueryHandler(edit_recipe_callback, pattern=txt_edit_recipe))
     application.add_handler(CallbackQueryHandler(cancel, pattern=txt_cancel))

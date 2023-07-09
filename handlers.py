@@ -12,6 +12,7 @@ from models import (
     get_photo,
     get_instructions,
     cancel,
+    revoke_user_shared,
     search_recipe_callback,
     get_user_search,
     edit_recipe,
@@ -21,8 +22,8 @@ from models import (
     share_callback,
     share_link,
     share_permission_level,
-    share,
-    share_public_state
+    share_public_state,
+    share_togglt_public
 )
 
 # text
@@ -47,6 +48,9 @@ txt_share_button_public_en = "b-public"
 txt_share_button_link_en = "b-link"
 txt_share_button_togglt_public_en = "b-togglt_public"
 txt_share_button_create_link_en = "b-create-link"
+txt_share_button_revoke_or_not = "b-revoke-or-not"
+txt_share_button_revoke = "revoke"
+txt_share_button_save = "save"
 txt_share_single = "share single"
 txt_share_all = "share all"
 txt_share_link = "יצירת לינק"
@@ -63,7 +67,6 @@ txt_share_view_en = "view"
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
 USER_QUERY, TRY_AGAIN = range(2)
 GET_NEW_VALUE, GET_DELETE_RECIPE = range(2)
-STATUS_CHECH_FUNCTION, SHARE_PUBLIC, SHARE_PERMISSIONS, SHARE = range(2)
 
 
 add_conv_handler = ConversationHandler(
@@ -115,13 +118,15 @@ edit_conv_handler = ConversationHandler(
 # share handlers { ----
 share_start_handler = CallbackQueryHandler(share_callback, pattern=txt_share_button_start_en)
 
-share_public_handler = CallbackQueryHandler(share_public_state, pattern=txt_share_button_public_en)
+share_public_state_handler = CallbackQueryHandler(share_public_state, pattern=txt_share_button_public_en)
 
-share_public_handler = CallbackQueryHandler(share_callback, pattern=txt_share_button_togglt_public_en)
+share_public_togglt_handler = CallbackQueryHandler(share_togglt_public, pattern=txt_share_button_togglt_public_en)
 
-share_public_handler = CallbackQueryHandler(share_permission_level, pattern=txt_share_button_link_en)
+share_permission_level_handler = CallbackQueryHandler(share_permission_level, pattern=txt_share_button_link_en)
 
-share_public_handler = CallbackQueryHandler(share_link, pattern=txt_share_button_create_link_en)
+share_link_handler = CallbackQueryHandler(share_link, pattern=txt_share_button_create_link_en)
+
+share_revoke_user_shared_handler = CallbackQueryHandler(revoke_user_shared, pattern=txt_share_button_create_link_en)
 # ---- }
 
 more_details_handler = CallbackQueryHandler(more_details, pattern=txt_more_details)

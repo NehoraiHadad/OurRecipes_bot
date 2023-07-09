@@ -230,6 +230,19 @@ class RecipeHandler(DynamoDBHandler):
         for recipe in user_recipes:
             self.make_public(recipe)
 
+    def revoke_public(self, recipe_id: str) -> None:
+        self.table.update_item(
+            Key={"recipe_id": recipe_id},
+            UpdateExpression="set is_public = :t",
+            ExpressionAttributeValues={":t": False},
+        )
+
+    def revoke_all_public(self, user_id: str) -> None:
+        User_handler = UserHandler("users")
+        user_recipes = User_handler.fetch_owned_recipes(user_id)
+        for recipe in user_recipes:
+            self.revoke_public(recipe)
+
     def fetch_public_recipes(self) -> List[Dict[str, Any]]:
         response = self.table.scan()
         public_recipes = [
