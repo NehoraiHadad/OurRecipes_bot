@@ -29,7 +29,7 @@ class UserHandler(DynamoDBHandler):
                 existing_user["shared_recipes"] = existing_user.get(
                     "shared_recipes", []
                 )
-                existing_user["shared_recipes"].add(shared_recipes)
+                existing_user["shared_recipes"].append(shared_recipes)
             existing_user["last_seen"] = date_string
             response = self.table.put_item(Item=existing_user)
             return response
@@ -100,8 +100,8 @@ class UserHandler(DynamoDBHandler):
                 shared_recipes.remove(unique_id)
                 return self.table.update_item(
                     Key={"user_id": user_id},
-                    UpdateExpression="SET shared_recipes = :unique_id",
-                    ExpressionAttributeValues={":unique_id": unique_id}
+                    UpdateExpression="SET shared_recipes = :shared_recipes",
+                    ExpressionAttributeValues={":shared_recipes": shared_recipes}
                 )
             
     def update_all_recipes_public(self, user_id: str, all_recipes_public: bool):
@@ -168,6 +168,7 @@ class RecipeHandler(DynamoDBHandler):
         photo: str,
         recipe_created: str,
         recipe_modified: str,
+        is_public: bool
     ) -> Dict[str, Any]:
         recipe_ingredients_list = [
             ingredient.strip() for ingredient in ingredients.split(",")
@@ -181,6 +182,7 @@ class RecipeHandler(DynamoDBHandler):
             "photo_url": photo,
             "recipe_created": recipe_created,
             "recipe_modified": recipe_modified,
+            "is_public": is_public 
         }
 
         user_handler = UserHandler("users")
@@ -300,8 +302,11 @@ class SharesHandler(DynamoDBHandler):
 
     def fetch_share_info(self, unique_id: str) -> Optional[Dict[str, Any]]:
         item = self.table.get_item(Key={"unique_id": unique_id})
-        return item if item else None
-
+        if "Item" in item:
+            return item["Item"]
+        else:
+            None
+            
     def add_share_access(self, unique_id: str, user_id: str):
         key = {"unique_id": unique_id}
 
@@ -313,7 +318,7 @@ class SharesHandler(DynamoDBHandler):
             ExpressionAttributeValues=expression_attribute_values,
         )
 
-    def revoke_share_access(self, unique_id: str):
+    def revoke_share_link(self, unique_id: str):
         self.table.update_item(
             Key={"unique_id": unique_id},
             UpdateExpression="SET link_status = :cancelled",

@@ -234,11 +234,13 @@ async def start(update, context):
 
     if context.args:
         unique_id = context.args[0]
-        share_info = shares_handler.fetch_share_info(unique_id)["Item"]
+        share_info = shares_handler.fetch_share_info(unique_id)
         if share_info["user_id"] == user_id:
             await update.message.reply_text("אין אפשרות לשתף מתכון עם עצמך :)")
+            unique_id = None
         elif share_info["link_status"] == "cancelled":
             await update.message.reply_text("השתמשת בלינק ישן\. תמיד אפשר לבקש חדש 😎")
+            unique_id = None
         elif share_info["recipe_id"] or share_info["all_recipes"]:
             shares_handler.add_share_access(unique_id, user_id)
             await update.message.reply_text(
@@ -437,6 +439,8 @@ async def get_instructions(update, context):
     date_string = current_date.strftime(date_format)
     recipe_created = date_string
 
+    is_public = user_handler.is_all_public(user_id)
+
     recipe = {
         "recipe_id": recipe_id,
         "created_by": user_id,
@@ -446,6 +450,7 @@ async def get_instructions(update, context):
         "photo_url": photo_url,
         "recipe_created": recipe_created,
         "recipe_modified": "",
+        "is_public": is_public 
     }
 
     # Send to DynamoDB
@@ -458,6 +463,7 @@ async def get_instructions(update, context):
         recipe["photo_url"],
         recipe["recipe_created"],
         recipe["recipe_modified"],
+        recipe["is_public"]
     )
 
     # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
@@ -725,7 +731,7 @@ async def more_details(update, context):
 
     if recipe["recipe_modified"] != "":
         str_modified = recipe["recipe_modified"]
-        str_modified = datetime.datetime.strptime(str_modified, date_format)
+        str_modified = escape_markdown(str(datetime.datetime.strptime(str_modified, date_format)), 2)
     else:
         str_modified = "המתכון לא עבר שינוי"
 
@@ -756,13 +762,13 @@ async def generate_text_for_share(
     context, active_sharing_infos, is_public, all_recipes, recipe_id=None
 ):
     text_public = (
-        "\- " + "כל המתכונים שלך ציבוריים\.\n"
+        "\- " + "כל המתכונים שלך *ציבוריים*\.\n"
         if is_public
-        else "כל המתכונים שלך פרטיים\.\n"
+        else "כל המתכונים שלך *פרטיים*\.\n"
     )
     if not all_recipes:
         text_public = (
-            "\- " + "המתכון שלך ציבורי\.\n\n" if is_public else "המתכון שלך פרטי\.\n"
+            "\- " + ("המתכון שלך *ציבורי*\.\n\n" if is_public else "המתכון שלך *פרטי*\.\n")
         )
 
     if active_sharing_infos:
@@ -1001,7 +1007,7 @@ async def revoke_user_shared(update, context):
 
     old_link = context.user_data["links_share_revoke"]["link_revoke_ask"]
     if user_ansuer == "revoke":
-        shares_handler.revoke_share_access(old_link["unique_id"])
+        shares_handler.revoke_share_link(old_link["unique_id"])
         if "user_id_shared" in old_link:
             for user_id in old_link["user_id_shared"]:
                 user_handler.remove_share_recipe(user_id, old_link["unique_id"])
@@ -1015,7 +1021,7 @@ async def revoke_user_shared(update, context):
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
     else:
-        shares_handler.revoke_share_access(old_link["unique_id"])
+        shares_handler.revoke_share_link(old_link["unique_id"])
         await query.edit_message_text(
             "כרצונך\. לא נוגעים 🤷‍♂️",
             parse_mode=ParseMode.MARKDOWN_V2,
@@ -1029,27 +1035,26 @@ async def update_accessable_recipes(update, context):
     owned_recipes = user_handler.fetch_owned_recipes(user_id)
     shared_recipes_info = user_handler.fetch_shared_recipes(user_id)
 
-    shared_recipes = []
+    shared_recipes = set()
     shared_recipe_permissions = {}
 
     for shared_info in shared_recipes_info:
-        shared_info = shares_handler.fetch_share_info(shared_info)["Item"]
-        if shared_info["all_recipes"]:
-            user_shared_recipes = user_handler.fetch_owned_recipes(
-                shared_info["user_id"]
-            )
-            shared_recipes.extend(user_shared_recipes)
+        shared_info = shares_handler.fetch_share_info(shared_info)
+        if shared_info:
+            if shared_info["all_recipes"]:
+                user_shared_recipes = user_handler.fetch_owned_recipes(
+                    shared_info["user_id"]
+                )
+                shared_recipes.update(user_shared_recipes)
 
-            for recipe in user_shared_recipes:
-                if recipe not in shared_recipe_permissions:
-                    shared_recipe_permissions[recipe] = shared_info["permission_level"]
-        else:
-            shared_recipes.append(shared_info["recipe_id"])
-            shared_recipe_permissions[shared_info["recipe_id"]] = (
-                shared_info["permission_level"]
-                if shared_info["permission_level"] == "edit"
-                else "view"
-            )
+                for recipe in user_shared_recipes:
+                    if recipe not in shared_recipe_permissions or shared_info["permission_level"] == "edit":
+                        shared_recipe_permissions[recipe] = shared_info["permission_level"]
+            else:
+                shared_recipes.add(shared_info["recipe_id"])
+                if shared_info["recipe_id"] not in shared_recipe_permissions or shared_info["permission_level"] == "edit":
+                        shared_recipe_permissions[shared_info["recipe_id"]] = shared_info["permission_level"]
+
 
     context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
 
