@@ -7,7 +7,7 @@ s3_client = boto3.client('s3', region_name=region_name)
 bucket_name = 'our-recipes-bot-bucket'
 folder_name = 'users_recipe_photos/'
 
-async def upload_photo_to_s3(photo, recipe_id):
+def upload_photo_to_s3(photo, recipe_id):
     if photo:
         photo_key = f"{folder_name}{recipe_id}"
         s3_client.upload_fileobj(photo, bucket_name, photo_key)
