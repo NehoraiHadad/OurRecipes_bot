@@ -1,4 +1,5 @@
 import logging
+import os
 from telegram.ext import (ApplicationBuilder, CallbackQueryHandler)
 from commands import (
     start_handler,
@@ -25,8 +26,7 @@ from models import (
     edit_recipe_callback,
 )
 
-# api_token = os.environ.get('TELEGRAM_API_TOKEN')
-api_token = '6144759204:AAEMghm6YQgjZTHQnWJPhz-NmkA5_rcEVcU'
+api_token = os.environ.get('TELEGRAM_API_TOKEN')
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
