@@ -388,11 +388,11 @@ async def get_photo(update, context):
     if update.message.photo:
         # Photo received
         photo_id = update.message.photo[-1].file_id
-        photo = context.bot.get_file(photo_id)
+        photo = await context.bot.get_file(photo_id)
 
         # Create an in-memory file-like object to store the photo data
         photo_data = io.BytesIO()
-        photo.download_to_memory(out=photo_data)
+        await photo.download_to_memory(out=photo_data)
         photo_data.seek(0)
 
         context.user_data["recipe_photo"] = photo_data
