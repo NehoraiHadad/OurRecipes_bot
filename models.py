@@ -450,7 +450,7 @@ async def get_instructions(update, context):
         "photo_url": photo_url,
         "recipe_created": recipe_created,
         "recipe_modified": "",
-        "is_public": is_public 
+        "is_public": is_public,
     }
 
     # Send to DynamoDB
@@ -463,7 +463,7 @@ async def get_instructions(update, context):
         recipe["photo_url"],
         recipe["recipe_created"],
         recipe["recipe_modified"],
-        recipe["is_public"]
+        recipe["is_public"],
     )
 
     # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
@@ -615,11 +615,13 @@ async def edit_recipe_get_respond(update, context):
     message_id = context.user_data["message_id"]
     message_id_edit = context.user_data["message_id_edit"]
     message_id_user = update.message.message_id
-    context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
-    context.bot.delete_message(
+    await context.bot.delete_message(
+        chat_id=update.effective_chat.id, message_id=message_id
+    )
+    await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_edit
     )
-    context.bot.delete_message(
+    await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_user
     )
 
@@ -642,17 +644,16 @@ async def edit_recipe_get_respond(update, context):
         update_data = {"instructions": new_instructions}
     elif action == txt_edit_photo:
         new_photo_id = update.message.photo[-1].file_id
-        photo = context.bot.get_file(new_photo_id)
+        photo = await context.bot.get_file(new_photo_id)
 
         # Create an in-memory file-like object to store the photo data
         photo_data = io.BytesIO()
-        photo.download_to_memory(out=photo_data)
+        await photo.download_to_memory(out=photo_data)
         photo_data.seek(0)
 
-        photo_url = upload_photo_to_s3(photo_data, recipe_id)
         if recipe["photo_url"] != "":
             delete_photo_from_s3(recipe["photo_url"])
-
+        photo_url = upload_photo_to_s3(photo_data, recipe_id)
         recipe["photo_url"] = photo_url
         update_data = {"photo_url": photo_url}
 
@@ -663,21 +664,19 @@ async def edit_recipe_get_respond(update, context):
         recipe_modified = date_string
 
         update_data["recipe_modified"] = recipe_modified
+        context.user_data[recipe["recipe_id"]]["recipe_modified"] = recipe_modified
 
         #  Update DB
         recipe_handler.update_recipe(recipe_id, update_data)
         await update.message.reply_text("השינוי נשמר בהצלחה")
 
         # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
-        if recipe["created_by"] != str(update.effective_user.id):
-            await display_recipe(
-                update,
-                context,
-                recipe,
-                is_public=True
-                if recipe["created_by"] != str(update.effective_user.id)
-                else False,
-            )
+        await display_recipe(
+            update,
+            context,
+            recipe,
+            is_public = recipe["created_by"] != str(update.effective_user.id),
+        )
 
     else:
         await update.message.reply_text("לא נקלט שינוי")
@@ -705,8 +704,8 @@ async def delete_recipe(update, context):
     if recipe["photo_url"] != "":
         delete_photo_from_s3(recipe["photo_url"])
 
-    context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
-    context.bot.delete_message(
+    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
+    await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_edit
     )
 
@@ -731,7 +730,9 @@ async def more_details(update, context):
 
     if recipe["recipe_modified"] != "":
         str_modified = recipe["recipe_modified"]
-        str_modified = escape_markdown(str(datetime.datetime.strptime(str_modified, date_format)), 2)
+        str_modified = escape_markdown(
+            str(datetime.datetime.strptime(str_modified, date_format)), 2
+        )
     else:
         str_modified = "המתכון לא עבר שינוי"
 
@@ -746,7 +747,7 @@ async def more_details(update, context):
         caption_bold = add_words_bold(query.message.caption, bold_words)
         await query.message.edit_caption(
             caption=f"{caption_bold}{more_details_str}",
-            reply_markup=InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]]),
+            reply_markup=InlineKeyboardMarkup([[await edit_recipe_button(recipe_id)]]),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
     else:
@@ -767,8 +768,8 @@ async def generate_text_for_share(
         else "כל המתכונים שלך *פרטיים*\.\n"
     )
     if not all_recipes:
-        text_public = (
-            "\- " + ("המתכון שלך *ציבורי*\.\n\n" if is_public else "המתכון שלך *פרטי*\.\n")
+        text_public = "\- " + (
+            "המתכון שלך *ציבורי*\.\n\n" if is_public else "המתכון שלך *פרטי*\.\n"
         )
 
     if active_sharing_infos:
@@ -1048,13 +1049,22 @@ async def update_accessable_recipes(update, context):
                 shared_recipes.update(user_shared_recipes)
 
                 for recipe in user_shared_recipes:
-                    if recipe not in shared_recipe_permissions or shared_info["permission_level"] == "edit":
-                        shared_recipe_permissions[recipe] = shared_info["permission_level"]
+                    if (
+                        recipe not in shared_recipe_permissions
+                        or shared_info["permission_level"] == "edit"
+                    ):
+                        shared_recipe_permissions[recipe] = shared_info[
+                            "permission_level"
+                        ]
             else:
                 shared_recipes.add(shared_info["recipe_id"])
-                if shared_info["recipe_id"] not in shared_recipe_permissions or shared_info["permission_level"] == "edit":
-                        shared_recipe_permissions[shared_info["recipe_id"]] = shared_info["permission_level"]
-
+                if (
+                    shared_info["recipe_id"] not in shared_recipe_permissions
+                    or shared_info["permission_level"] == "edit"
+                ):
+                    shared_recipe_permissions[shared_info["recipe_id"]] = shared_info[
+                        "permission_level"
+                    ]
 
     context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
 
