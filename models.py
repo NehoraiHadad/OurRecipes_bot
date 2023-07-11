@@ -367,7 +367,7 @@ async def update_message_with_permissions(context, message, recipe_id):
 
 async def add_recipe_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     await query.edit_message_text(
         "שם המתכון:", reply_markup=InlineKeyboardMarkup([[cancel_button]])
     )
@@ -490,7 +490,7 @@ async def cancel(update, context):
 # search recipe
 async def search_recipe_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     await query.edit_message_text(
         "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
     )
@@ -555,7 +555,7 @@ def local_search_recipes_by_name(recipes, user_query):
 # edit recipe
 async def edit_recipe_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     recipe_id = query.data.replace(txt_edit_recipe, "")
     await query.message.reply_text(
@@ -568,7 +568,7 @@ async def edit_recipe_callback(update, context):
 
 async def edit_recipe(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     action, recipe_id = query.data.split("_")[1:]
 
     context.user_data["recipe_id"] = recipe_id
@@ -720,7 +720,7 @@ async def delete_recipe(update, context):
 
 async def more_details(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     recipe_id = query.data.replace(txt_more_details, "")
     recipe = context.user_data[recipe_id]
@@ -805,7 +805,7 @@ async def generate_text_for_share(
 
 async def share_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     unique_id = str(uuid.uuid4())
     user_id = str(update.effective_user.id)
@@ -878,7 +878,7 @@ async def share_callback(update, context):
 
 async def share_public_state(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     is_public = context.user_data["share"]["public"]["is_public"]
     state = "ציבורי" if not is_public else "פרטי"
@@ -928,7 +928,7 @@ async def share_togglt_public(update, context):
 
 async def share_permission_level(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     query_data = query.data.split("_")
     unique_id = query_data[1]
@@ -950,7 +950,7 @@ async def share_permission_level(update, context):
 
 async def share_link(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     query_data = query.data.split("_")
     unique_id = query_data[1]
@@ -1000,7 +1000,7 @@ async def share_link(update, context):
 
 async def revoke_user_shared(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     query_data = query.data.split("_")
     user_ansuer = query_data[1]
