@@ -675,7 +675,7 @@ async def edit_recipe_get_respond(update, context):
             update,
             context,
             recipe,
-            is_public = recipe["created_by"] != str(update.effective_user.id),
+            is_public=recipe["created_by"] != str(update.effective_user.id),
         )
 
     else:
@@ -704,7 +704,9 @@ async def delete_recipe(update, context):
     if recipe["photo_url"] != "":
         delete_photo_from_s3(recipe["photo_url"])
 
-    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
+    await context.bot.delete_message(
+        chat_id=update.effective_chat.id, message_id=message_id
+    )
     await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_edit
     )
@@ -1079,27 +1081,82 @@ async def update_accessable_recipes(update, context):
 
 
 # inline mode
-def inline_query(update, context):
-    query = update.inline_query.query
+async def inline_query(update, context):
+    user_query = update.inline_query.query
+    print(user_query)
     user_id = str(update.inline_query.from_user.id)
 
     # Retrieve matching recipes from database
-    accessible_recipes = user_handler.get_accessible_recipes(user_id)
-    matching_recipes = recipe_handler.search_recipes_by_name(accessible_recipes, query)
+    owned_recipes = user_handler.fetch_owned_recipes(user_id)
+    print(owned_recipes)
+    # owned_recipes, shared_recipes, public_recipes = await update_accessable_recipes(
+    #     update, context
+    # )
 
-    # inline query results
+    matching_recipes_owned = recipe_handler.search_recipes_by_name(
+        owned_recipes, user_query
+    )
+    print(matching_recipes_owned)
+    # matching_recipes_shared = recipe_handler.search_recipes_by_name(
+    #     shared_recipes, user_query
+    # )
+    # matching_recipes_publicd = local_search_recipes_by_name(public_recipes, user_query)
+
+    # Send the search results to the user
     results = []
-    for recipe in matching_recipes:
-        recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
+    if matching_recipes_owned: # or matching_recipes_shared or matching_recipes_publicd:
+        # if matching_recipes_owned:
+        
+        for recipe in matching_recipes_owned:
+            
+            if type(recipe["ingredients"]) != list:
+                    recipe["ingredients"] = [
+                        ingredient.strip() for ingredient in recipe["ingredients"].split(",")
+                    ]
 
-        result = InlineQueryResultArticle(
-            id=recipe["recipe_id"],
-            title=recipe["recipe_name"],
-            input_message_content=InputTextMessageContent(
-                message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
-            ),
-            thumb_url="https://picsum.photos/200/300",
-        )
-        results.append(result)
+            formatted_ingredients = "\n".join(
+                [
+                    f"{index+1}.  {ingredient}"
+                    for index, ingredient in enumerate(recipe["ingredients"])
+                ]
+            )
 
-    context.bot.answer_inline_query(update.inline_query.id, results)
+            recipe_str = f'*שם:*  {escape_markdown(recipe["recipe_name"], 2)}\n\n*רכיבים:*  {escape_markdown(formatted_ingredients, 2)}\n\n*הוראות:*  {escape_markdown(recipe["instructions"],2 )}'
+
+            result = InlineQueryResultArticle(
+                id=recipe["recipe_id"],
+                title=recipe["recipe_name"],
+                input_message_content=InputTextMessageContent(
+                    message_text=recipe_str, parse_mode="MarkdownV2"
+                ),
+                thumb_url="https://picsum.photos/200/300",
+            )
+            results.append(result)
+        # if matching_recipes_shared:
+        #     for recipe in matching_recipes_shared:
+        #         recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
+
+        #         result = InlineQueryResultArticle(
+        #             id=recipe["recipe_id"],
+        #             title=recipe["recipe_name"],
+        #             input_message_content=InputTextMessageContent(
+        #                 message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
+        #             ),
+        #             thumb_url="https://picsum.photos/200/300",
+        #         )
+        #         results.append(result)
+        # if matching_recipes_publicd:
+        #     for recipe in matching_recipes_publicd:
+        #         recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
+
+        #         result = InlineQueryResultArticle(
+        #             id=recipe["recipe_id"],
+        #             title=recipe["recipe_name"],
+        #             input_message_content=InputTextMessageContent(
+        #                 message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
+        #             ),
+        #             thumb_url="https://picsum.photos/200/300",
+        #         )
+        #         results.append(result)    # inline query results
+
+    await context.bot.answer_inline_query(update.inline_query.id, results)
