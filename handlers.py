@@ -3,6 +3,7 @@ from telegram.ext import (
     MessageHandler,
     ConversationHandler,
     filters,
+    CommandHandler,
 )
 
 from models import (
@@ -23,7 +24,7 @@ from models import (
     share_link,
     share_permission_level,
     share_public_state,
-    share_togglt_public
+    share_togglt_public,
 )
 
 # text
@@ -31,8 +32,8 @@ txt_add_recipe = "הוסף מתכון חדש"
 txt_search_recipe = "חפש מתכון"
 
 txt_cancel = "בטל 🛑"
-txt_try_again = "לנסות שוב?🔄"
-
+txt_try_again = "לנסות שוב? 🔄"
+txt_try_again_en = "try_again"
 txt_edit_recipe = "עריכת מתכון"
 txt_edit = "edit"
 txt_edit_name = "שם"
@@ -87,12 +88,13 @@ add_conv_handler = ConversationHandler(
 
 search_conv_handler = ConversationHandler(
     entry_points=[
-        CallbackQueryHandler(search_recipe_callback, pattern=txt_search_recipe)
+        CallbackQueryHandler(search_recipe_callback, pattern=txt_search_recipe),
+        CommandHandler("search", search_recipe_callback),
     ],
     states={
         USER_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_user_search)],
         TRY_AGAIN: [
-            CallbackQueryHandler(search_recipe_callback, pattern=txt_try_again)
+            CallbackQueryHandler(search_recipe_callback, pattern=txt_try_again_en)
         ],
     },
     fallbacks=[CallbackQueryHandler(cancel, pattern=txt_cancel)],
@@ -116,17 +118,29 @@ edit_conv_handler = ConversationHandler(
 )
 
 # share handlers { ----
-share_start_handler = CallbackQueryHandler(share_callback, pattern=txt_share_button_start_en)
+share_start_handler = CallbackQueryHandler(
+    share_callback, pattern=txt_share_button_start_en
+)
 
-share_public_state_handler = CallbackQueryHandler(share_public_state, pattern=txt_share_button_public_en)
+share_public_state_handler = CallbackQueryHandler(
+    share_public_state, pattern=txt_share_button_public_en
+)
 
-share_public_togglt_handler = CallbackQueryHandler(share_togglt_public, pattern=txt_share_button_togglt_public_en)
+share_public_togglt_handler = CallbackQueryHandler(
+    share_togglt_public, pattern=txt_share_button_togglt_public_en
+)
 
-share_permission_level_handler = CallbackQueryHandler(share_permission_level, pattern=txt_share_button_link_en)
+share_permission_level_handler = CallbackQueryHandler(
+    share_permission_level, pattern=txt_share_button_link_en
+)
 
-share_link_handler = CallbackQueryHandler(share_link, pattern=txt_share_button_create_link_en)
+share_link_handler = CallbackQueryHandler(
+    share_link, pattern=txt_share_button_create_link_en
+)
 
-share_revoke_user_shared_handler = CallbackQueryHandler(revoke_user_shared, pattern=txt_share_button_revoke_or_not)
+share_revoke_user_shared_handler = CallbackQueryHandler(
+    revoke_user_shared, pattern=txt_share_button_revoke_or_not
+)
 # ---- }
 
 more_details_handler = CallbackQueryHandler(more_details, pattern=txt_more_details)

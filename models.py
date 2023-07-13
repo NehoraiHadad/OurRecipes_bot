@@ -29,7 +29,7 @@ txt_search_recipe = "חפש מתכון"
 
 txt_cancel = "בטל 🛑"
 txt_try_again = "לנסות שוב? 🔄"
-
+txt_try_again_en = "try_again"
 txt_edit_recipe = "עריכת מתכון"
 txt_edit = "edit"
 txt_edit_name = "שם"
@@ -494,11 +494,17 @@ async def cancel(update, context):
 # search recipe
 async def search_recipe_callback(update, context):
     query = update.callback_query
-    await query.answer()
-    await query.edit_message_text(
-        "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
-    )
-    return USER_QUERY
+    if query:
+        await query.answer()
+        await query.edit_message_text(
+            "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
+        )
+        return USER_QUERY
+    else:
+        await update.effective_chat.send_message(
+            "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
+        )
+        return USER_QUERY
 
 
 async def get_user_search(update, context):
@@ -536,7 +542,7 @@ async def get_user_search(update, context):
                     [
                         cancel_button,
                         InlineKeyboardButton(
-                            txt_try_again, callback_data=txt_try_again
+                            txt_try_again, callback_data=txt_try_again_en
                         ),
                     ]
                 ]
