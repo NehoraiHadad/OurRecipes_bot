@@ -4,7 +4,7 @@ from telegram.ext import (ApplicationBuilder, CallbackQueryHandler)
 from commands import (
     start_handler,
     inline_query_handler,
-    unknown_handler
+    unknown_handler,
 )
 
 from handlers import(
@@ -22,7 +22,6 @@ from handlers import(
 
 from models import (
     cancel,
-    search_recipe_callback,
     edit_recipe_callback,
 )
 
@@ -34,10 +33,8 @@ logging.basicConfig(
 )
 
 # text
-txt_try_again = "לנסות שוב?🔄"
 txt_edit_recipe = "עריכת מתכון"
 txt_cancel = 'בטל 🛑'
-txt_more_details = "פרטים נוספים"
 
 
 
@@ -47,6 +44,7 @@ def main():
     
     # commands 
     application.add_handler(start_handler)
+    application.add_handler(search_conv_handler)
     application.add_handler(inline_query_handler)
     application.add_handler(unknown_handler)
 
@@ -63,7 +61,6 @@ def main():
     application.add_handler(share_link_handler)
     application.add_handler(share_revoke_user_shared_handler)
 
-    application.add_handler(CallbackQueryHandler(search_recipe_callback, pattern=txt_try_again))
     application.add_handler(CallbackQueryHandler(edit_recipe_callback, pattern=txt_edit_recipe))
     application.add_handler(CallbackQueryHandler(cancel, pattern=txt_cancel))
 
