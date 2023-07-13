@@ -77,9 +77,10 @@ async def init_buttons():
     return init_buttons
 
 
-def edit_buttons(context, recipe_id):
+def edit_buttons(update, context, recipe_id):
     recipe = context.user_data[recipe_id]
-    if recipe["created_by"] == context.user_data["user_id"]:
+    user_id = str(update.effective_user.id)
+    if recipe["created_by"] == user_id:
         bottons = (
             [
                 InlineKeyboardButton(
@@ -226,9 +227,8 @@ def share_buttons_revoke_or_not():
 
 # commends
 async def start(update, context):
-    user_id = str(update.message.from_user.id)
+    user_id = str(update.effective_user.id)
     username = update.effective_user.first_name
-    context.user_data["user_id"] = user_id
     context.user_data["user_name"] = username
     unique_id = None
 
@@ -297,7 +297,6 @@ async def display_recipe(update, context, recipe, is_shared=False, is_public=Fal
             photo=photo,
             caption=recipe_str,
             parse_mode=ParseMode.MARKDOWN_V2,
-            # TO DO - fix the reply_markup for owner and public
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
@@ -367,7 +366,7 @@ async def update_message_with_permissions(context, message, recipe_id):
 
 async def add_recipe_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     await query.edit_message_text(
         "שם המתכון:", reply_markup=InlineKeyboardMarkup([[cancel_button]])
     )
@@ -388,11 +387,11 @@ async def get_photo(update, context):
     if update.message.photo:
         # Photo received
         photo_id = update.message.photo[-1].file_id
-        photo = context.bot.get_file(photo_id)
+        photo = await context.bot.get_file(photo_id)
 
         # Create an in-memory file-like object to store the photo data
         photo_data = io.BytesIO()
-        photo.download_to_memory(out=photo_data)
+        await photo.download_to_memory(out=photo_data)
         photo_data.seek(0)
 
         context.user_data["recipe_photo"] = photo_data
@@ -425,7 +424,7 @@ async def get_ingredients(update, context):
 async def get_instructions(update, context):
     instructions = update.message.text
     context.user_data["recipe_instructions"] = instructions
-    user_id = context.user_data["user_id"]
+    user_id = str(update.effective_user.id)
     recipe_id = str(uuid.uuid4())
 
     if context.user_data["recipe_photo"] != "":
@@ -450,7 +449,7 @@ async def get_instructions(update, context):
         "photo_url": photo_url,
         "recipe_created": recipe_created,
         "recipe_modified": "",
-        "is_public": is_public 
+        "is_public": is_public,
     }
 
     # Send to DynamoDB
@@ -463,10 +462,9 @@ async def get_instructions(update, context):
         recipe["photo_url"],
         recipe["recipe_created"],
         recipe["recipe_modified"],
-        recipe["is_public"]
+        recipe["is_public"],
     )
 
-    # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
     # Send the recipe to the user
     await display_recipe(update, context, recipe)
 
@@ -474,6 +472,12 @@ async def get_instructions(update, context):
     await update.message.reply_text(
         "מה עוד?", reply_markup=InlineKeyboardMarkup(await init_buttons())
     )
+
+
+    key_to_del = ["recipe_photo", "recipe_instructions", "recipe_ingredients", "recipe_name"]
+    for key in key_to_del:
+        del context.user_data[key]
+
     return ConversationHandler.END
 
 
@@ -490,7 +494,7 @@ async def cancel(update, context):
 # search recipe
 async def search_recipe_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     await query.edit_message_text(
         "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
     )
@@ -499,17 +503,16 @@ async def search_recipe_callback(update, context):
 
 async def get_user_search(update, context):
     user_query = update.message.text
-    context.user_data["user_query"] = user_query
 
     # Perform the search and retrieve matching recipes from DB
     owned_recipes, shared_recipes, public_recipes = await update_accessable_recipes(
         update, context
     )
 
-    matching_recipes_owned = recipe_handler.search_recipes_by_name(
+    matching_recipes_owned = await recipe_handler.search_recipes_by_name(
         owned_recipes, user_query
     )
-    matching_recipes_shared = recipe_handler.search_recipes_by_name(
+    matching_recipes_shared = await recipe_handler.search_recipes_by_name(
         shared_recipes, user_query
     )
     matching_recipes_publicd = local_search_recipes_by_name(public_recipes, user_query)
@@ -555,12 +558,12 @@ def local_search_recipes_by_name(recipes, user_query):
 # edit recipe
 async def edit_recipe_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     recipe_id = query.data.replace(txt_edit_recipe, "")
     await query.message.reply_text(
         text="אז מה לערוך?",
-        reply_markup=InlineKeyboardMarkup(edit_buttons(context, recipe_id)),
+        reply_markup=InlineKeyboardMarkup(edit_buttons(update, context, recipe_id)),
     )
     message_id = query.message.message_id
     context.user_data["message_id"] = message_id
@@ -568,7 +571,7 @@ async def edit_recipe_callback(update, context):
 
 async def edit_recipe(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     action, recipe_id = query.data.split("_")[1:]
 
     context.user_data["recipe_id"] = recipe_id
@@ -576,7 +579,7 @@ async def edit_recipe(update, context):
 
     if action == txt_edit_photo:
         await query.edit_message_text(
-            f"מחכה לשליחת תמונה חדשה",
+            f"מחכה לתמונה החדשה 🤩",
             reply_markup=InlineKeyboardMarkup([[cancel_button]]),
         )
     elif (
@@ -615,11 +618,13 @@ async def edit_recipe_get_respond(update, context):
     message_id = context.user_data["message_id"]
     message_id_edit = context.user_data["message_id_edit"]
     message_id_user = update.message.message_id
-    context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
-    context.bot.delete_message(
+    await context.bot.delete_message(
+        chat_id=update.effective_chat.id, message_id=message_id
+    )
+    await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_edit
     )
-    context.bot.delete_message(
+    await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_user
     )
 
@@ -634,25 +639,28 @@ async def edit_recipe_get_respond(update, context):
         update_data = {"recipe_name": new_name}
     elif action == txt_edit_ingredients:
         new_ingredients = update.message.text
-        recipe["ingredients"] = new_ingredients
-        update_data = {"ingredients": new_ingredients}
+        recipe_ingredients_list = [
+            ingredient.strip() for ingredient in new_ingredients.split(",")
+        ]
+        recipe["ingredients"] = recipe_ingredients_list
+        update_data = {"ingredients": recipe_ingredients_list
+        }
     elif action == txt_edit_instructions:
         new_instructions = update.message.text
         recipe["instructions"] = new_instructions
         update_data = {"instructions": new_instructions}
     elif action == txt_edit_photo:
         new_photo_id = update.message.photo[-1].file_id
-        photo = context.bot.get_file(new_photo_id)
+        photo = await context.bot.get_file(new_photo_id)
 
         # Create an in-memory file-like object to store the photo data
         photo_data = io.BytesIO()
-        photo.download_to_memory(out=photo_data)
+        await photo.download_to_memory(out=photo_data)
         photo_data.seek(0)
 
-        photo_url = upload_photo_to_s3(photo_data, recipe_id)
         if recipe["photo_url"] != "":
             delete_photo_from_s3(recipe["photo_url"])
-
+        photo_url = upload_photo_to_s3(photo_data, recipe_id)
         recipe["photo_url"] = photo_url
         update_data = {"photo_url": photo_url}
 
@@ -663,29 +671,25 @@ async def edit_recipe_get_respond(update, context):
         recipe_modified = date_string
 
         update_data["recipe_modified"] = recipe_modified
+        context.user_data[recipe["recipe_id"]]["recipe_modified"] = recipe_modified
 
         #  Update DB
         recipe_handler.update_recipe(recipe_id, update_data)
         await update.message.reply_text("השינוי נשמר בהצלחה")
 
-        # TO DO - In display_recipe function: change (just here) the recipe param to inclode the photo from user not from DB
-        if recipe["created_by"] != str(update.effective_user.id):
-            await display_recipe(
-                update,
-                context,
-                recipe,
-                is_public=True
-                if recipe["created_by"] != str(update.effective_user.id)
-                else False,
-            )
+        await display_recipe(
+            update,
+            context,
+            recipe,
+            is_public=recipe["created_by"] != str(update.effective_user.id),
+        )
 
     else:
         await update.message.reply_text("לא נקלט שינוי")
 
     keys_to_clear = ["action", "recipe_id", "message_id_edit", "message_id"]
     for key in keys_to_clear:
-        if key in context.user_data:
-            del context.user_data[key]
+        del context.user_data[key]
 
     return ConversationHandler.END
 
@@ -697,7 +701,7 @@ async def delete_recipe(update, context):
     message_id_edit = context.user_data["message_id_edit"]
 
     recipe_id = context.user_data["recipe_id"]
-    user_id = context.user_data["user_id"]
+    user_id = str(update.effective_user.id)
     recipe = context.user_data[recipe_id]
 
     # Update DB
@@ -705,8 +709,10 @@ async def delete_recipe(update, context):
     if recipe["photo_url"] != "":
         delete_photo_from_s3(recipe["photo_url"])
 
-    context.bot.delete_message(chat_id=update.effective_chat.id, message_id=message_id)
-    context.bot.delete_message(
+    await context.bot.delete_message(
+        chat_id=update.effective_chat.id, message_id=message_id
+    )
+    await context.bot.delete_message(
         chat_id=update.effective_chat.id, message_id=message_id_edit
     )
 
@@ -715,12 +721,16 @@ async def delete_recipe(update, context):
         "מה עוד?", reply_markup=InlineKeyboardMarkup(await init_buttons())
     )
 
+    keys_to_clear = ["recipe_id", "message_id_edit", "message_id"]
+    for key in keys_to_clear:
+        del context.user_data[key]
+
     return ConversationHandler.END
 
 
 async def more_details(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     recipe_id = query.data.replace(txt_more_details, "")
     recipe = context.user_data[recipe_id]
@@ -731,7 +741,9 @@ async def more_details(update, context):
 
     if recipe["recipe_modified"] != "":
         str_modified = recipe["recipe_modified"]
-        str_modified = escape_markdown(str(datetime.datetime.strptime(str_modified, date_format)), 2)
+        str_modified = escape_markdown(
+            str(datetime.datetime.strptime(str_modified, date_format)), 2
+        )
     else:
         str_modified = "המתכון לא עבר שינוי"
 
@@ -746,7 +758,7 @@ async def more_details(update, context):
         caption_bold = add_words_bold(query.message.caption, bold_words)
         await query.message.edit_caption(
             caption=f"{caption_bold}{more_details_str}",
-            reply_markup=InlineKeyboardMarkup([[edit_recipe_button(recipe_id)]]),
+            reply_markup=InlineKeyboardMarkup([[await edit_recipe_button(recipe_id)]]),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
     else:
@@ -767,8 +779,8 @@ async def generate_text_for_share(
         else "כל המתכונים שלך *פרטיים*\.\n"
     )
     if not all_recipes:
-        text_public = (
-            "\- " + ("המתכון שלך *ציבורי*\.\n\n" if is_public else "המתכון שלך *פרטי*\.\n")
+        text_public = "\- " + (
+            "המתכון שלך *ציבורי*\.\n\n" if is_public else "המתכון שלך *פרטי*\.\n"
         )
 
     if active_sharing_infos:
@@ -785,15 +797,12 @@ async def generate_text_for_share(
                 share_link = f"`https://t.me/{context.bot.username}?start={active_sharing_info['unique_id']}`"
                 text_link = f"\- לינק פעיל:\n{share_link}\nברמת הרשאות: *{permission_level}*\n\n"
                 text_links += text_link
-                if "links_share_revoke" in context.user_data:
-                    context.user_data["links_share_revoke"][
-                        active_sharing_info["permission_level"]
-                    ] = active_sharing_info
-                else:
+                if "links_share_revoke" not in context.user_data:
                     context.user_data["links_share_revoke"] = {}
-                    context.user_data["links_share_revoke"][
-                        active_sharing_info["permission_level"]
-                    ] = active_sharing_info
+                context.user_data["links_share_revoke"][
+                    active_sharing_info["permission_level"]
+                ] = active_sharing_info
+
         if text_links:
             return (
                 text_public
@@ -805,7 +814,7 @@ async def generate_text_for_share(
 
 async def share_callback(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     unique_id = str(uuid.uuid4())
     user_id = str(update.effective_user.id)
@@ -878,14 +887,14 @@ async def share_callback(update, context):
 
 async def share_public_state(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     is_public = context.user_data["share"]["public"]["is_public"]
     state = "ציבורי" if not is_public else "פרטי"
 
     text = f"בטוח שתרצה להפוך ל{state}?"
 
-    await query.edit_message_text(
+    return await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup(
             [share_buttons_public_or_privet(is_public), [cancel_button]]
@@ -924,11 +933,13 @@ async def share_togglt_public(update, context):
 
     if "public" in context.user_data["share"]:
         del context.user_data["share"]["public"]
+    
+    return
 
 
 async def share_permission_level(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     query_data = query.data.split("_")
     unique_id = query_data[1]
@@ -939,7 +950,7 @@ async def share_permission_level(update, context):
         context.user_data["share"][unique_id]["link_or_public"] = link
         text = "הכי טוב לשתף כמה שטוב לך :\)\n\nכעת יש לבחור את רמת ההרשאות המתאימה לך\.\n*צפייה* או *עריכה*\.\n\(בכל מקרה לאף אחד מלבדך *לא* ניתן את האפשרות למחוק מתכון\)"
 
-    await query.edit_message_text(
+    return await query.edit_message_text(
         f"{text}",
         reply_markup=InlineKeyboardMarkup(
             [share_buttons_permissions(unique_id), [cancel_button]]
@@ -950,7 +961,7 @@ async def share_permission_level(update, context):
 
 async def share_link(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     query_data = query.data.split("_")
     unique_id = query_data[1]
@@ -996,11 +1007,17 @@ async def share_link(update, context):
             ),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
+        return
+    
+    if "public" in context.user_data["share"]:
+        del context.user_data["share"]
+
+    return
 
 
 async def revoke_user_shared(update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     query_data = query.data.split("_")
     user_ansuer = query_data[1]
@@ -1027,6 +1044,10 @@ async def revoke_user_shared(update, context):
             parse_mode=ParseMode.MARKDOWN_V2,
         )
 
+    if "public" in context.user_data["share"]:
+        del context.user_data["share"]
+
+    return
 
 async def update_accessable_recipes(update, context):
     user_id = str(update.effective_user.id)
@@ -1048,13 +1069,22 @@ async def update_accessable_recipes(update, context):
                 shared_recipes.update(user_shared_recipes)
 
                 for recipe in user_shared_recipes:
-                    if recipe not in shared_recipe_permissions or shared_info["permission_level"] == "edit":
-                        shared_recipe_permissions[recipe] = shared_info["permission_level"]
+                    if (
+                        recipe not in shared_recipe_permissions
+                        or shared_info["permission_level"] == "edit"
+                    ):
+                        shared_recipe_permissions[recipe] = shared_info[
+                            "permission_level"
+                        ]
             else:
                 shared_recipes.add(shared_info["recipe_id"])
-                if shared_info["recipe_id"] not in shared_recipe_permissions or shared_info["permission_level"] == "edit":
-                        shared_recipe_permissions[shared_info["recipe_id"]] = shared_info["permission_level"]
-
+                if (
+                    shared_info["recipe_id"] not in shared_recipe_permissions
+                    or shared_info["permission_level"] == "edit"
+                ):
+                    shared_recipe_permissions[shared_info["recipe_id"]] = shared_info[
+                        "permission_level"
+                    ]
 
     context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
 
@@ -1069,27 +1099,44 @@ async def update_accessable_recipes(update, context):
 
 
 # inline mode
-def inline_query(update, context):
-    query = update.inline_query.query
-    user_id = str(update.inline_query.from_user.id)
+async def inline_query(update, context):
+    user_query = update.inline_query.query
+    user_id = str(update.effective_user.id)
 
     # Retrieve matching recipes from database
-    accessible_recipes = user_handler.get_accessible_recipes(user_id)
-    matching_recipes = recipe_handler.search_recipes_by_name(accessible_recipes, query)
+    owned_recipes = user_handler.fetch_owned_recipes(user_id)
 
-    # inline query results
+    matching_recipes_owned = await recipe_handler.search_recipes_by_name(
+        owned_recipes, user_query
+    )
+
     results = []
-    for recipe in matching_recipes:
-        recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
+    if matching_recipes_owned: 
+        
+        for recipe in matching_recipes_owned:
+            
+            if type(recipe["ingredients"]) != list:
+                    recipe["ingredients"] = [
+                        ingredient.strip() for ingredient in recipe["ingredients"].split(",")
+                    ]
 
-        result = InlineQueryResultArticle(
-            id=recipe["recipe_id"],
-            title=recipe["recipe_name"],
-            input_message_content=InputTextMessageContent(
-                message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
-            ),
-            thumb_url="https://picsum.photos/200/300",
-        )
-        results.append(result)
+            formatted_ingredients = "\n".join(
+                [
+                    f"{index+1}.  {ingredient}"
+                    for index, ingredient in enumerate(recipe["ingredients"])
+                ]
+            )
 
-    context.bot.answer_inline_query(update.inline_query.id, results)
+            recipe_str = f'*שם:*  {escape_markdown(recipe["recipe_name"], 2)}\n\n*רכיבים:*  {escape_markdown(formatted_ingredients, 2)}\n\n*הוראות:*  {escape_markdown(recipe["instructions"],2 )}'
+
+            result = InlineQueryResultArticle(
+                id=recipe["recipe_id"],
+                title=recipe["recipe_name"],
+                input_message_content=InputTextMessageContent(
+                    message_text=recipe_str, parse_mode="MarkdownV2"
+                ),
+                thumb_url="https://picsum.photos/200/300",
+            )
+            results.append(result)
+
+    return await context.bot.answer_inline_query(update.inline_query.id, results)

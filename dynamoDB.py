@@ -1,15 +1,19 @@
 import boto3
+import botocore
 from typing import Any, Dict, List, Optional
 import datetime
+import asyncio
 
 region_name = "us-east-1"
 
-dynamodb_client = boto3.client("dynamodb", region_name=region_name)
+dynamodb_client = boto3.client(
+    "dynamodb", region_name=region_name
+)
 
 
 class DynamoDBHandler:
     def __init__(self, table_name: str):
-        self.dynamodb_client = boto3.resource("dynamodb")
+        self.dynamodb_client = boto3.resource("dynamodb", config=botocore.config.Config(max_pool_connections=25))
         self.table = self.dynamodb_client.Table(table_name)
 
 
@@ -39,7 +43,7 @@ class UserHandler(DynamoDBHandler):
                 "user_id": user_id,
                 "username": username,
                 "join_in": date_string,
-                "all_recipes_public": False
+                "all_recipes_public": False,
             }
             if shared_recipes:
                 item["shared_recipes"] = []
@@ -60,7 +64,6 @@ class UserHandler(DynamoDBHandler):
             ReturnValues="ALL_NEW",
         )
         return response["Attributes"]
-
 
     def fetch_owned_recipes(self, user_id: str) -> list[str]:
         response = self.table.get_item(Key={"user_id": user_id})
@@ -91,19 +94,18 @@ class UserHandler(DynamoDBHandler):
 
         return update_response
 
-    
     def remove_share_recipe(self, user_id: str, unique_id: str):
         response = self.table.get_item(Key={"user_id": user_id})
-        if 'Item' in response:
-            shared_recipes = response['Item'].get('shared_recipes', [])
+        if "Item" in response:
+            shared_recipes = response["Item"].get("shared_recipes", [])
             if unique_id in shared_recipes:
                 shared_recipes.remove(unique_id)
                 return self.table.update_item(
                     Key={"user_id": user_id},
                     UpdateExpression="SET shared_recipes = :shared_recipes",
-                    ExpressionAttributeValues={":shared_recipes": shared_recipes}
+                    ExpressionAttributeValues={":shared_recipes": shared_recipes},
                 )
-            
+
     def update_all_recipes_public(self, user_id: str, all_recipes_public: bool):
         response = self.table.update_item(
             Key={"user_id": user_id},
@@ -112,21 +114,21 @@ class UserHandler(DynamoDBHandler):
             ReturnValues="ALL_NEW",
         )
         return response["Attributes"]
-    
+
     def is_all_public(self, user_id: str) -> bool:
         response = self.table.get_item(Key={"user_id": user_id})
-        if 'Item' in response and 'all_recipes_public' in response['Item']:
-            return response['Item']['all_recipes_public']
-        
+        if "Item" in response and "all_recipes_public" in response["Item"]:
+            return response["Item"]["all_recipes_public"]
+
         return False
-    
+
     def is_recipe_public(self, recipe_id: str) -> bool:
         recipe = self.table.get_item(Key={"recipe_id": recipe_id}).get("Item", None)
 
         if recipe and recipe.get("is_public", False):
             return True
         return False
-    
+
     def add_user_shared(self, user_id: str, unique_id: str):
         self.table.update_item(
             Key={"user_id": user_id},
@@ -150,12 +152,13 @@ class UserHandler(DynamoDBHandler):
                     shares.append(share["Item"])
         return shares
 
+
 class RecipeHandler(DynamoDBHandler):
     def get_recipe_by_id(self, recipe_id: str) -> Dict[str, Any]:
-        response = self.table.get_item(Key={"recipe_id": recipe_id}) 
+        response = self.table.get_item(Key={"recipe_id": recipe_id})
         if "Item" in response:
-            return response["Item"] 
-        else: 
+            return response["Item"]
+        else:
             return None
 
     def add_recipe(
@@ -168,7 +171,7 @@ class RecipeHandler(DynamoDBHandler):
         photo: str,
         recipe_created: str,
         recipe_modified: str,
-        is_public: bool
+        is_public: bool,
     ) -> Dict[str, Any]:
         recipe_ingredients_list = [
             ingredient.strip() for ingredient in ingredients.split(",")
@@ -182,7 +185,7 @@ class RecipeHandler(DynamoDBHandler):
             "photo_url": photo,
             "recipe_created": recipe_created,
             "recipe_modified": recipe_modified,
-            "is_public": is_public 
+            "is_public": is_public,
         }
 
         user_handler = UserHandler("users")
@@ -214,22 +217,29 @@ class RecipeHandler(DynamoDBHandler):
             ExpressionAttributeValues=expression_attribute_values,
         )
 
-    def search_recipes_by_name(
+    async def fetch_recipe_by_name(self, recipe_id, search_query):
+        response = await asyncio.to_thread(
+            self.table.query,
+            KeyConditionExpression="recipe_id = :recipe_id",
+            FilterExpression="contains(recipe_name, :query)",
+            ExpressionAttributeValues={
+                ":recipe_id": recipe_id,
+                ":query": search_query,
+            },
+        )
+        return response["Items"] or []
+
+    async def search_recipes_by_name(
         self, recipe_ids: List[str], search_query: str
     ) -> List[Dict[str, Any]]:
-        matching_recipes = []
+        
+        tasks = [
+            self.fetch_recipe_by_name(recipe_id, search_query)
+            for recipe_id in recipe_ids
+        ]
+        results = await asyncio.gather(*tasks)
+        matching_recipes = [item for sublist in results for item in sublist]
 
-        for recipe_id in recipe_ids:
-            response = self.table.query(
-                KeyConditionExpression="recipe_id = :recipe_id",
-                FilterExpression="contains(recipe_name, :query)",
-                ExpressionAttributeValues={
-                    ":recipe_id": recipe_id,
-                    ":query": search_query,
-                },
-            )
-            if response["Items"]:
-                matching_recipes.append(response["Items"][0])
         return matching_recipes
 
     def make_public(self, recipe_id: str) -> None:
@@ -265,12 +275,11 @@ class RecipeHandler(DynamoDBHandler):
         ]
 
         return public_recipes
-    
+
     def is_recipe_public(self, recipe_id: str) -> bool:
         recipe = self.get_recipe_by_id(recipe_id)
-        
-        return recipe.get("is_public", False)
 
+        return recipe.get("is_public", False)
 
 
 class SharesHandler(DynamoDBHandler):
@@ -289,7 +298,7 @@ class SharesHandler(DynamoDBHandler):
             "permission_level": permission_level,
             "all_recipes": all_recipes,
             "recipe_id": "",
-            "link_status": link_status
+            "link_status": link_status,
         }
 
         if not all_recipes:
@@ -306,7 +315,7 @@ class SharesHandler(DynamoDBHandler):
             return item["Item"]
         else:
             None
-            
+
     def add_share_access(self, unique_id: str, user_id: str):
         key = {"unique_id": unique_id}
 
