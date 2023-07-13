@@ -232,7 +232,7 @@ class RecipeHandler(DynamoDBHandler):
     async def search_recipes_by_name(
         self, recipe_ids: List[str], search_query: str
     ) -> List[Dict[str, Any]]:
-        # matching_recipes = []
+        
         tasks = [
             self.fetch_recipe_by_name(recipe_id, search_query)
             for recipe_id in recipe_ids
@@ -240,19 +240,6 @@ class RecipeHandler(DynamoDBHandler):
         results = await asyncio.gather(*tasks)
         matching_recipes = [item for sublist in results for item in sublist]
 
-        # for recipe_id in recipe_ids:
-        #     response = await asyncio.to_thread(
-        #         self.table.query(
-        #             KeyConditionExpression="recipe_id = :recipe_id",
-        #             FilterExpression="contains(recipe_name, :query)",
-        #             ExpressionAttributeValues={
-        #                 ":recipe_id": recipe_id,
-        #                 ":query": search_query,
-        #             },
-        #         )
-        #     )
-        #     if response["Items"]:
-        # matching_recipes.append(response["Items"][0])
         return matching_recipes
 
     def make_public(self, recipe_id: str) -> None:
