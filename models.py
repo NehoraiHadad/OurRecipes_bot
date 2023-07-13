@@ -506,10 +506,10 @@ async def get_user_search(update, context):
         update, context
     )
 
-    matching_recipes_owned = recipe_handler.search_recipes_by_name(
+    matching_recipes_owned = await recipe_handler.search_recipes_by_name(
         owned_recipes, user_query
     )
-    matching_recipes_shared = recipe_handler.search_recipes_by_name(
+    matching_recipes_shared = await recipe_handler.search_recipes_by_name(
         shared_recipes, user_query
     )
     matching_recipes_publicd = local_search_recipes_by_name(public_recipes, user_query)
@@ -1083,29 +1083,17 @@ async def update_accessable_recipes(update, context):
 # inline mode
 async def inline_query(update, context):
     user_query = update.inline_query.query
-    print(user_query)
     user_id = str(update.inline_query.from_user.id)
 
     # Retrieve matching recipes from database
     owned_recipes = user_handler.fetch_owned_recipes(user_id)
-    print(owned_recipes)
-    # owned_recipes, shared_recipes, public_recipes = await update_accessable_recipes(
-    #     update, context
-    # )
 
-    matching_recipes_owned = recipe_handler.search_recipes_by_name(
+    matching_recipes_owned = await recipe_handler.search_recipes_by_name(
         owned_recipes, user_query
     )
-    print(matching_recipes_owned)
-    # matching_recipes_shared = recipe_handler.search_recipes_by_name(
-    #     shared_recipes, user_query
-    # )
-    # matching_recipes_publicd = local_search_recipes_by_name(public_recipes, user_query)
 
-    # Send the search results to the user
     results = []
-    if matching_recipes_owned: # or matching_recipes_shared or matching_recipes_publicd:
-        # if matching_recipes_owned:
+    if matching_recipes_owned: 
         
         for recipe in matching_recipes_owned:
             
@@ -1132,31 +1120,5 @@ async def inline_query(update, context):
                 thumb_url="https://picsum.photos/200/300",
             )
             results.append(result)
-        # if matching_recipes_shared:
-        #     for recipe in matching_recipes_shared:
-        #         recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
-
-        #         result = InlineQueryResultArticle(
-        #             id=recipe["recipe_id"],
-        #             title=recipe["recipe_name"],
-        #             input_message_content=InputTextMessageContent(
-        #                 message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
-        #             ),
-        #             thumb_url="https://picsum.photos/200/300",
-        #         )
-        #         results.append(result)
-        # if matching_recipes_publicd:
-        #     for recipe in matching_recipes_publicd:
-        #         recipe_str = f'*שם:*  {recipe["recipe_name"]}\n\n*רכיבים:*  {recipe["ingredients"]}\n\n*הוראות:*  {recipe["instructions"]}'
-
-        #         result = InlineQueryResultArticle(
-        #             id=recipe["recipe_id"],
-        #             title=recipe["recipe_name"],
-        #             input_message_content=InputTextMessageContent(
-        #                 message_text=recipe_str, parse_mode="Markdown_V2MARKDOWN_V2"
-        #             ),
-        #             thumb_url="https://picsum.photos/200/300",
-        #         )
-        #         results.append(result)    # inline query results
 
     await context.bot.answer_inline_query(update.inline_query.id, results)
