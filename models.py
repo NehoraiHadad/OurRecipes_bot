@@ -3,6 +3,7 @@ from telegram import (
     InlineKeyboardMarkup,
     InputTextMessageContent,
     InlineQueryResultArticle,
+    ReplyKeyboardMarkup,
 )
 
 from telegram.ext import ConversationHandler
@@ -12,6 +13,8 @@ from telegram.helpers import escape_markdown
 import uuid
 import io
 import datetime
+import random
+
 
 from dynamoDB import RecipeHandler, UserHandler, SharesHandler
 from s3 import upload_photo_to_s3, download_photo_from_s3, delete_photo_from_s3
@@ -21,7 +24,6 @@ from utils.text_effects import add_words_bold
 user_handler = UserHandler("users")
 recipe_handler = RecipeHandler("recipes")
 shares_handler = SharesHandler("shares")
-
 
 # text
 txt_add_recipe = "הוסף מתכון חדש"
@@ -499,17 +501,17 @@ async def search_recipe_callback(update, context):
         await query.edit_message_text(
             "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
         )
-        return USER_QUERY
     else:
         await update.effective_chat.send_message(
             "מה לחפש?", reply_markup=InlineKeyboardMarkup([[cancel_button]])
         )
-        return USER_QUERY
-
+    return USER_QUERY
 
 async def get_user_search(update, context):
     user_query = update.message.text
 
+    stiker_message = await start_sticker_loader(update, context)
+    
     # Perform the search and retrieve matching recipes from DB
     owned_recipes, shared_recipes, public_recipes = await update_accessable_recipes(
         update, context
@@ -522,6 +524,8 @@ async def get_user_search(update, context):
         shared_recipes, user_query
     )
     matching_recipes_publicd = local_search_recipes_by_name(public_recipes, user_query)
+
+    await stop_sticker_loader(update, context, stiker_message = stiker_message)
 
     # Send the search results to the user
     if matching_recipes_owned or matching_recipes_shared or matching_recipes_publicd:
@@ -1102,6 +1106,24 @@ async def update_accessable_recipes(update, context):
     ]
 
     return owned_recipes, shared_recipes, public_recipes
+
+
+async def start_sticker_loader(update, context):
+    stickers = [
+        'CAACAgIAAxkBAAIHWmSwczoyZPfw1tBzEFDdiN8MgIR9AAJvAAPBnGAMyw59i8DdTVYvBA',
+        'CAACAgIAAxkBAAIHW2Swc-2FJjSK3j-mO5sBtQWM0DY9AAIeAAPANk8ToWBbLasAAd4ELwQ',
+        'CAACAgIAAxkBAAIHXGSwdDrBvjmYr94U6B45af4kU6t1AAInAAOQ_ZoVbZYCG6YB3WEvBA'
+    ]
+
+    # start loader
+    chosen_sticker = random.choice(stickers)
+    stiker_message = await context.bot.send_sticker(chat_id=update.effective_chat.id, sticker=chosen_sticker)
+
+    return stiker_message
+
+async def stop_sticker_loader(update, context, stiker_message):
+    # close loader
+    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=stiker_message.message_id)
 
 
 # inline mode
