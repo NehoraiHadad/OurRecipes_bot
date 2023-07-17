@@ -21,7 +21,7 @@ async def add_recipe_callback(update, context):
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(
-        "שם המתכון:", reply_markup=InlineKeyboardMarkup([[cancel_button]])
+        "שם המתכון:", reply_markup=InlineKeyboardMarkup([[cancel_button()]])
     )
     return RECIPE_NAME
 
@@ -31,7 +31,7 @@ async def get_recipe_name(update, context):
     context.user_data["recipe_name"] = name
     await update.message.reply_text(
         "יש תמונה? (אם לא, כתוב ושלח משהו)",
-        reply_markup=InlineKeyboardMarkup([[cancel_button]]),
+        reply_markup=InlineKeyboardMarkup([[cancel_button()]]),
     )
     return RECIPE_PHOTO
 
@@ -51,7 +51,7 @@ async def get_photo(update, context):
 
         await update.message.reply_text(
             "הרכיבים (מופרדים בפסיק):",
-            reply_markup=InlineKeyboardMarkup([[cancel_button]]),
+            reply_markup=InlineKeyboardMarkup([[cancel_button()]]),
         )
         return RECIPE_INGREDIENTS
     else:
@@ -60,7 +60,7 @@ async def get_photo(update, context):
 
         await update.message.reply_text(
             "הרכיבים (מופרדים בפסיק):",
-            reply_markup=InlineKeyboardMarkup([[cancel_button]]),
+            reply_markup=InlineKeyboardMarkup([[cancel_button()]]),
         )
         return RECIPE_INGREDIENTS
 
@@ -69,7 +69,7 @@ async def get_ingredients(update, context):
     ingredients = update.message.text
     context.user_data["recipe_ingredients"] = ingredients
     await update.message.reply_text(
-        "הוראות:", reply_markup=InlineKeyboardMarkup([[cancel_button]])
+        "הוראות:", reply_markup=InlineKeyboardMarkup([[cancel_button()]])
     )
     return RECIPE_INSTRUCTIONS
 

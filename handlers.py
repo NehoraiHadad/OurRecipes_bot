@@ -1,4 +1,3 @@
-from dis import get_instructions
 from telegram.ext import (
     CallbackQueryHandler,
     MessageHandler,
@@ -9,10 +8,16 @@ from telegram.ext import (
 )
 
 from modules.commands import start, unknown
-from modules.helpers import cancel
+from modules.helpers.cancel import cancel
 from modules.inline_mode import inline_query
-from modules.recipes import more_details
-from modules.recipes.add import add_recipe_callback, get_ingredients, get_photo, get_recipe_name
+from modules.recipes.more_details import more_details
+from modules.recipes.add import (
+    add_recipe_callback,
+    get_ingredients,
+    get_instructions,
+    get_photo,
+    get_recipe_name,
+)
 from modules.recipes.delete import delete_recipe
 from modules.recipes.edit import edit_recipe, edit_recipe_get_respond
 from modules.recipes.search import get_user_search, search_recipe_callback
@@ -21,42 +26,20 @@ from modules.share.public import share_public_state, share_togglt_public
 from modules.share.revoke import revoke_user_shared
 from modules.share.share import share_callback
 
-# text
-txt_add_recipe = "הוסף מתכון חדש"
-txt_search_recipe = "חפש מתכון"
-
-txt_cancel = "בטל 🛑"
-txt_try_again = "לנסות שוב? 🔄"
-txt_try_again_en = "try_again"
-txt_edit_recipe = "עריכת מתכון"
-txt_edit = "edit"
-txt_edit_name = "שם"
-txt_edit_ingredients = "רכיבים"
-txt_edit_instructions = "הוראות"
-txt_edit_photo = "תמונה"
-txt_delete_recipe = "מחק מתכון⁉"
-txt_delete = "מחק"
-txt_more_details = "פרטים נוספים"
-txt_share_recipe = "שיתוף"
-txt_share_button_start_en = "b-start"
-txt_share_button_public_en = "b-public"
-txt_share_button_link_en = "b-link"
-txt_share_button_togglt_public_en = "b-togglt_public"
-txt_share_button_create_link_en = "b-create-link"
-txt_share_button_revoke_or_not = "b-revoke-or-not"
-txt_share_button_revoke = "revoke"
-txt_share_button_save = "save"
-txt_share_single = "share single"
-txt_share_all = "share all"
-txt_share_link = "יצירת לינק"
-txt_share_link_en = "link"
-txt_share_public = "שתף לכולם"
-txt_share_public_en = "public"
-txt_share_edit = "עריכה"
-txt_share_edit_en = "edit"
-txt_share_view = "צפייה"
-txt_share_view_en = "view"
-
+from modules.helpers.txt import (
+    txt_add_recipe,
+    txt_search_recipe,
+    txt_cancel,
+    txt_edit,
+    txt_more_details,
+    txt_share_button_start_en,
+    txt_share_button_public_en,
+    txt_share_button_link_en,
+    txt_share_button_togglt_public_en,
+    txt_share_button_create_link_en,
+    txt_share_button_revoke_or_not,
+    txt_try_again_en
+)
 
 # state for conv handler
 RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)

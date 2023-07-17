@@ -9,9 +9,7 @@ from modules.helpers.buttons import cancel_button
 
 recipe_handler = RecipeHandler("recipes")
 
-
-txt_try_again = "לנסות שוב? 🔄"
-txt_try_again_en = "try_again"
+from modules.helpers.txt import txt_try_again, txt_try_again_en
 
 
 USER_QUERY, TRY_AGAIN = range(2)
@@ -30,11 +28,12 @@ async def search_recipe_callback(update, context):
         )
     return USER_QUERY
 
+
 async def get_user_search(update, context):
     user_query = update.message.text
 
     stiker_message = await start_sticker_loader(update, context)
-    
+
     # Perform the search and retrieve matching recipes from DB
     owned_recipes, shared_recipes, public_recipes = await update_accessable_recipes(
         update, context
@@ -48,7 +47,7 @@ async def get_user_search(update, context):
     )
     matching_recipes_publicd = local_search_recipes_by_name(public_recipes, user_query)
 
-    await stop_sticker_loader(update, context, stiker_message = stiker_message)
+    await stop_sticker_loader(update, context, stiker_message=stiker_message)
 
     # Send the search results to the user
     if matching_recipes_owned or matching_recipes_shared or matching_recipes_publicd:

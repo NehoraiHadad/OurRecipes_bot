@@ -10,16 +10,17 @@ from modules.s3 import delete_photo_from_s3, upload_photo_to_s3
 from modules.helpers.buttons import edit_buttons, cancel_button
 from modules.recipes.display import display_recipe
 
-txt_cancel = "בטל 🛑"
-txt_edit_name = "שם"
-txt_edit_ingredients = "רכיבים"
-txt_edit_instructions = "הוראות"
-txt_edit_photo = "תמונה"
-txt_edit_recipe = "עריכת מתכון"
-txt_delete = "מחק"
+recipe_handler = RecipeHandler("recipes")
 
-
-
+from modules.helpers.txt import (
+    txt_cancel,
+    txt_edit_name,
+    txt_edit_ingredients,
+    txt_edit_instructions,
+    txt_edit_photo,
+    txt_edit_recipe,
+    txt_delete,
+)
 
 GET_NEW_VALUE, GET_DELETE_RECIPE = range(2)
 
@@ -48,7 +49,7 @@ async def edit_recipe(update, context):
     if action == txt_edit_photo:
         await query.edit_message_text(
             f"מחכה לתמונה החדשה 🤩",
-            reply_markup=InlineKeyboardMarkup([[cancel_button]]),
+            reply_markup=InlineKeyboardMarkup([[cancel_button()]]),
         )
     elif (
         action == txt_edit_ingredients
@@ -57,9 +58,10 @@ async def edit_recipe(update, context):
     ):
         await query.edit_message_text(
             f"נא להקליד את העדכון ב{action}:",
-            reply_markup=InlineKeyboardMarkup([[cancel_button]]),
+            reply_markup=InlineKeyboardMarkup([[cancel_button()]]),
         )
     elif action == txt_delete:
+        print("delete ----------------------")
         await query.edit_message_text(
             "בטוח שרוצה למחוק?",
             reply_markup=InlineKeyboardMarkup(
@@ -111,8 +113,7 @@ async def edit_recipe_get_respond(update, context):
             ingredient.strip() for ingredient in new_ingredients.split(",")
         ]
         recipe["ingredients"] = recipe_ingredients_list
-        update_data = {"ingredients": recipe_ingredients_list
-        }
+        update_data = {"ingredients": recipe_ingredients_list}
     elif action == txt_edit_instructions:
         new_instructions = update.message.text
         recipe["instructions"] = new_instructions
@@ -142,7 +143,7 @@ async def edit_recipe_get_respond(update, context):
         context.user_data[recipe["recipe_id"]]["recipe_modified"] = recipe_modified
 
         #  Update DB
-        RecipeHandler.update_recipe(recipe_id, update_data)
+        recipe_handler.update_recipe(recipe_id, update_data)
         await update.message.reply_text("השינוי נשמר בהצלחה")
 
         await display_recipe(

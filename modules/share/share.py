@@ -8,12 +8,11 @@ from modules.dynamoDB import RecipeHandler, SharesHandler, UserHandler
 
 import uuid
 
-from modules.helpers.buttons import share_buttons_link_or_public,cancel_button
+from modules.helpers.buttons import share_buttons_link_or_public, cancel_button
 
 user_handler = UserHandler("users")
 recipe_handler = RecipeHandler("recipes")
 shares_handler = SharesHandler("shares")
-
 
 
 txt_share_all = "share-all"
@@ -128,7 +127,7 @@ async def share_callback(update, context):
         + "\n\n"
         + "איך לשתף?\n\n*אפשרות* אחת לשתף לכולם על ידי הפיכה לציבורי\.\nאפשרות *אחרת* לשתף בעזרת קישור שניתן לשלוח למי שרוצים לשתף\.",
         reply_markup=InlineKeyboardMarkup(
-            [share_buttons_link_or_public(unique_id), [cancel_button]]
+            [share_buttons_link_or_public(unique_id), [cancel_button()]]
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
     )

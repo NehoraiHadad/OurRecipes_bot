@@ -22,7 +22,7 @@ async def share_public_state(update, context):
     return await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup(
-            [share_buttons_public_or_privet(is_public), [cancel_button]]
+            [share_buttons_public_or_privet(is_public), [cancel_button()]]
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
     )

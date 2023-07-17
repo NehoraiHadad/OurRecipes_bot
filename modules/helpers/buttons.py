@@ -1,40 +1,38 @@
 # buttons
 from telegram import InlineKeyboardButton
 
-# text
-txt_add_recipe = "הוסף מתכון חדש"
-txt_search_recipe = "חפש מתכון"
-
-txt_cancel = "בטל 🛑"
-
-txt_edit_recipe = "עריכת מתכון"
-txt_edit = "edit"
-txt_edit_name = "שם"
-txt_edit_ingredients = "רכיבים"
-txt_edit_instructions = "הוראות"
-txt_edit_photo = "תמונה"
-txt_delete_recipe = "מחק מתכון⁉"
-txt_delete = "מחק"
-txt_more_details = "פרטים נוספים"
-txt_share_recipe = "שיתוף"
-txt_share_button_start_en = "b-start"
-txt_share_button_public_en = "b-public"
-txt_share_button_link_en = "b-link"
-txt_share_button_togglt_public_en = "b-togglt_public"
-txt_share_button_create_link_en = "b-create-link"
-txt_share_button_revoke_or_not = "b-revoke-or-not"
-txt_share_button_revoke = "revoke"
-txt_share_button_save = "save"
-
-txt_share_all = "share-all"
-txt_share_link = "יצירת לינק"
-txt_share_link_en = "link"
-txt_share_public = "ציבורי/פרטי"
-txt_share_public_en = "public"
-txt_share_edit = "עריכה"
-txt_share_edit_en = "edit"
-txt_share_view = "צפייה"
-txt_share_view_en = "view"
+from modules.helpers.txt import (
+    txt_add_recipe,
+    txt_search_recipe,
+    txt_cancel,
+    txt_edit_recipe,
+    txt_edit,
+    txt_edit_name,
+    txt_edit_ingredients,
+    txt_edit_instructions,
+    txt_edit_photo,
+    txt_delete_recipe,
+    txt_delete,
+    txt_more_details,
+    txt_share_recipe,
+    txt_share_button_start_en,
+    txt_share_button_public_en,
+    txt_share_button_link_en,
+    txt_share_button_togglt_public_en,
+    txt_share_button_create_link_en,
+    txt_share_button_revoke_or_not,
+    txt_share_button_revoke,
+    txt_share_button_save,
+    txt_share_all,
+    txt_share_link,
+    txt_share_link_en,
+    txt_share_public_en,
+    txt_share_public,
+    txt_share_edit,
+    txt_share_edit_en,
+    txt_share_view_en,
+    txt_share_view,
+)
 
 
 def cancel_button():
@@ -80,7 +78,7 @@ def edit_buttons(update, context, recipe_id):
                     txt_delete_recipe,
                     callback_data=f"{txt_edit}_{txt_delete}_{recipe_id}",
                 ),
-                cancel_button,
+                cancel_button(),
             ],
         )
     else:
@@ -105,7 +103,7 @@ def edit_buttons(update, context, recipe_id):
                     callback_data=f"{txt_edit}_{txt_edit_photo}_{recipe_id}",
                 ),
             ],
-            [cancel_button],
+            [cancel_button()],
         )
     return bottons
 
@@ -196,4 +194,3 @@ def share_buttons_revoke_or_not():
             callback_data=txt_share_button_revoke_or_not + "_" + txt_share_button_save,
         ),
     ]
-

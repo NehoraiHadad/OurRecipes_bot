@@ -24,13 +24,10 @@ api_token = os.environ.get('TELEGRAM_API_TOKEN')
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG 
+    level=logging.INFO
 )
 
-# text
-txt_edit_recipe = "עריכת מתכון"
-txt_cancel = 'בטל 🛑'
-
+from modules.helpers.txt import txt_edit_recipe, txt_cancel
 
 
 def main():

@@ -28,7 +28,7 @@ async def share_permission_level(update, context):
     return await query.edit_message_text(
         f"{text}",
         reply_markup=InlineKeyboardMarkup(
-            [share_buttons_permissions(unique_id), [cancel_button]]
+            [share_buttons_permissions(unique_id), [cancel_button()]]
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
     )
@@ -77,7 +77,7 @@ async def share_link(update, context):
             reply_markup=InlineKeyboardMarkup(
                 [
                     share_buttons_revoke_or_not(),
-                    [cancel_button],
+                    [cancel_button()],
                 ]
             ),
             parse_mode=ParseMode.MARKDOWN_V2,

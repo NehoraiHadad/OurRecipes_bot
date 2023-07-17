@@ -7,7 +7,7 @@ from modules.s3 import download_photo_from_s3
 
 from modules.helpers.buttons import edit_recipe_button, more_details_button, share_button
 
-txt_share_single = "share-single"
+from modules.helpers.txt import (txt_share_single)
 
 
 async def display_recipe(update, context, recipe, is_shared=False, is_public=False):

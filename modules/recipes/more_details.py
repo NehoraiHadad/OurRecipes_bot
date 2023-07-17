@@ -7,8 +7,7 @@ import datetime
 from modules.helpers.buttons import edit_recipe_button
 from modules.helpers.text_effects import add_words_bold
 
-
-txt_more_details = "פרטים נוספים"
+from modules.helpers.txt import txt_more_details
 
 
 async def more_details(update, context):
