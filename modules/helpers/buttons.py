@@ -6,8 +6,7 @@ txt_add_recipe = "הוסף מתכון חדש"
 txt_search_recipe = "חפש מתכון"
 
 txt_cancel = "בטל 🛑"
-txt_try_again = "לנסות שוב? 🔄"
-txt_try_again_en = "try_again"
+
 txt_edit_recipe = "עריכת מתכון"
 txt_edit = "edit"
 txt_edit_name = "שם"
@@ -26,7 +25,7 @@ txt_share_button_create_link_en = "b-create-link"
 txt_share_button_revoke_or_not = "b-revoke-or-not"
 txt_share_button_revoke = "revoke"
 txt_share_button_save = "save"
-txt_share_single = "share-single"
+
 txt_share_all = "share-all"
 txt_share_link = "יצירת לינק"
 txt_share_link_en = "link"
@@ -38,7 +37,8 @@ txt_share_view = "צפייה"
 txt_share_view_en = "view"
 
 
-cancel_button = InlineKeyboardButton(txt_cancel, callback_data=txt_cancel)
+def cancel_button():
+    return InlineKeyboardButton(txt_cancel, callback_data=txt_cancel)
 
 
 async def init_buttons():

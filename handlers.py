@@ -1,31 +1,25 @@
+from dis import get_instructions
 from telegram.ext import (
     CallbackQueryHandler,
     MessageHandler,
     ConversationHandler,
     filters,
     CommandHandler,
+    InlineQueryHandler,
 )
 
-from models import (
-    add_recipe_callback,
-    get_recipe_name,
-    get_ingredients,
-    get_photo,
-    get_instructions,
-    cancel,
-    revoke_user_shared,
-    search_recipe_callback,
-    get_user_search,
-    edit_recipe,
-    edit_recipe_get_respond,
-    delete_recipe,
-    more_details,
-    share_callback,
-    share_link,
-    share_permission_level,
-    share_public_state,
-    share_togglt_public,
-)
+from modules.commands import start, unknown
+from modules.helpers import cancel
+from modules.inline_mode import inline_query
+from modules.recipes import more_details
+from modules.recipes.add import add_recipe_callback, get_ingredients, get_photo, get_recipe_name
+from modules.recipes.delete import delete_recipe
+from modules.recipes.edit import edit_recipe, edit_recipe_get_respond
+from modules.recipes.search import get_user_search, search_recipe_callback
+from modules.share.link import share_link, share_permission_level
+from modules.share.public import share_public_state, share_togglt_public
+from modules.share.revoke import revoke_user_shared
+from modules.share.share import share_callback
 
 # text
 txt_add_recipe = "הוסף מתכון חדש"
@@ -69,6 +63,10 @@ RECIPE_NAME, RECIPE_INGREDIENTS, RECIPE_INSTRUCTIONS, RECIPE_PHOTO = range(4)
 USER_QUERY, TRY_AGAIN = range(2)
 GET_NEW_VALUE, GET_DELETE_RECIPE = range(2)
 
+
+start_handler = CommandHandler("start", start)
+inline_query_handler = InlineQueryHandler(inline_query)
+unknown_handler = MessageHandler(filters.COMMAND, unknown)
 
 add_conv_handler = ConversationHandler(
     entry_points=[CallbackQueryHandler(add_recipe_callback, pattern=txt_add_recipe)],

@@ -1,11 +1,6 @@
 import logging
 import os
 from telegram.ext import (ApplicationBuilder, CallbackQueryHandler)
-from commands import (
-    start_handler,
-    inline_query_handler,
-    unknown_handler,
-)
 
 from handlers import(
     edit_conv_handler,
@@ -17,19 +12,19 @@ from handlers import(
     share_public_togglt_handler,
     share_permission_level_handler,
     share_link_handler,
-    share_revoke_user_shared_handler
+    share_revoke_user_shared_handler, start_handler,
+    inline_query_handler,
+    unknown_handler,
 )
+from modules.helpers.cancel import cancel
+from modules.recipes.edit import edit_recipe_callback
 
-from models import (
-    cancel,
-    edit_recipe_callback,
-)
 
 api_token = os.environ.get('TELEGRAM_API_TOKEN')
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG 
 )
 
 # text
