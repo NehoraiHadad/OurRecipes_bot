@@ -24,7 +24,21 @@ async def display_recipe(update, context, recipe, is_shared=False, is_public=Fal
             for index, ingredient in enumerate(recipe["ingredients"])
         ]
     )
+
+
     recipe_str = f'*שם:*  {escape_markdown(recipe["recipe_name"], 2)}\n\n*רכיבים:*\n{escape_markdown(formatted_ingredients, 2)}\n\n*הוראות:*\n{escape_markdown(recipe["instructions"], 2)}'
+    
+    if is_shared:
+        owner_username = context.user_data["shared_recipe"].get(
+            recipe["recipe_id"]
+        )[1]
+        shared_text = f"_שותף מ {escape_markdown(owner_username, 2)}\._\n\n"
+        recipe_str = shared_text + recipe_str
+    
+    if is_public:
+        public_text = f"_מתכון זה ציבורי\._\n\n"
+        recipe_str = public_text + recipe_str
+
 
     message = None
     if recipe["photo_url"]:
@@ -78,9 +92,9 @@ async def display_recipe(update, context, recipe, is_shared=False, is_public=Fal
 
 
 async def update_message_with_permissions(context, message, recipe_id):
-    shared_recipe_permission = context.user_data["shared_recipe_permissions"].get(
+    shared_recipe_permission = context.user_data["shared_recipe"].get(
         recipe_id
-    )
+    )[0]
     if shared_recipe_permission == "edit":
         reply_markup = InlineKeyboardMarkup(
             [
