@@ -1,5 +1,3 @@
-
-
 from modules.dynamoDB import RecipeHandler, SharesHandler, UserHandler
 
 
@@ -16,7 +14,7 @@ async def update_accessable_recipes(update, context):
     shared_recipes_info = user_handler.fetch_shared_recipes(user_id)
 
     shared_recipes = set()
-    shared_recipe_permissions = {}
+    shared_recipe = {}
 
     for shared_info in shared_recipes_info:
         shared_info = shares_handler.fetch_share_info(shared_info)
@@ -29,23 +27,25 @@ async def update_accessable_recipes(update, context):
 
                 for recipe in user_shared_recipes:
                     if (
-                        recipe not in shared_recipe_permissions
+                        recipe not in shared_recipe
                         or shared_info["permission_level"] == "edit"
                     ):
-                        shared_recipe_permissions[recipe] = shared_info[
-                            "permission_level"
-                        ]
+                        shared_recipe[recipe] = (
+                            shared_info["permission_level"],
+                            shared_info["username"],
+                        )
             else:
                 shared_recipes.add(shared_info["recipe_id"])
                 if (
-                    shared_info["recipe_id"] not in shared_recipe_permissions
+                    shared_info["recipe_id"] not in shared_recipe
                     or shared_info["permission_level"] == "edit"
                 ):
-                    shared_recipe_permissions[shared_info["recipe_id"]] = shared_info[
-                        "permission_level"
-                    ]
+                    shared_recipe[shared_info["recipe_id"]] = (
+                        shared_info["permission_level"],
+                        shared_info["username"],
+                    )
 
-    context.user_data["shared_recipe_permissions"] = shared_recipe_permissions
+    context.user_data["shared_recipe"] = shared_recipe
 
     public_recipes = [
         recipe
