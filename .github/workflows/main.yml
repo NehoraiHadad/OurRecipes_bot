@@ -67,10 +67,10 @@ jobs:
         key: ${{ secrets.KEY }}
         script: |
           # Delete all stopped containers
-          docker container prune -f
+          sudo docker container prune -f
 
           # Delete all images except the one tagged as latest
-          docker images | grep -v 'latest' | awk '{ print $3 }' | xargs docker rmi -f
+          sudo docker images | grep -v 'latest' | awk '{ print $3 }' | xargs docker rmi -f
 
     - name: Delete old images from ECR
       env:
