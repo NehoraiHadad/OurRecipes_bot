@@ -57,7 +57,7 @@ jobs:
           if [ ! -z "$CONTAINER_ID" ]; then
             sudo docker stop $CONTAINER_ID
           fi          
-          sudo docker run --rm -e TELEGRAM_API_TOKEN=${{ env.TELEGRAM_API_TOKEN }} -v ~/.aws:/root/.aws -p 80:8080 ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          sudo docker run -d --rm -e TELEGRAM_API_TOKEN=${{ env.TELEGRAM_API_TOKEN }} -v ~/.aws:/root/.aws -p 80:8080 ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
     - name: Delete old images and containers
       uses: appleboy/ssh-action@master
