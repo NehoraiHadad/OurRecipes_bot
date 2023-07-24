@@ -51,6 +51,7 @@ jobs:
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.KEY }}
         script: |
+          echo $AWS_REGION
           aws ecr get-login-password --region $AWS_REGION | sudo docker login --username AWS --password-stdin $ECR_REGISTRY
           sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           sudo docker run --rm -e TELEGRAM_API_TOKEN=${{ secrets.TELEGRAM_API_TOKEN }} -v ~/.aws:/root/.aws -p 80:8080 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
