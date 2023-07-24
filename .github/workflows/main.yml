@@ -68,9 +68,9 @@ jobs:
         script: |
           # Delete all stopped containers
           sudo docker container prune -f
-
           # Delete all images except the one tagged as latest
-          sudo docker images | grep -v 'latest' | awk '{ print $3 }' | xargs docker rmi -f
+          sudo docker images | grep -v 'latest' | awk '{ print $3 }' | xargs sudo docker rmi -f
+
 
     - name: Delete old images from ECR
       env:
