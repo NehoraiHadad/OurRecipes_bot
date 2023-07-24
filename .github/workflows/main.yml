@@ -51,10 +51,9 @@ jobs:
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.KEY }}
         script: |
-          echo $AWS_REGION
-          aws ecr get-login-password --region $AWS_REGION | sudo docker login --username AWS --password-stdin $ECR_REGISTRY
-          sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          sudo docker run --rm -e TELEGRAM_API_TOKEN=${{ secrets.TELEGRAM_API_TOKEN }} -v ~/.aws:/root/.aws -p 80:8080 $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+          sudo docker pull ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          sudo docker run --rm -e TELEGRAM_API_TOKEN=${{ env.TELEGRAM_API_TOKEN }} -v ~/.aws:/root/.aws -p 80:8080 ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
     - name: Delete old images and containers
       uses: appleboy/ssh-action@master
