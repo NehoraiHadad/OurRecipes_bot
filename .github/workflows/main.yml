@@ -93,9 +93,8 @@ jobs:
           # Loop through the images to delete
           for IMAGE in $(echo "${DELETE_IMAGES}" | jq -r '.[]'); do
             # Delete the image
-            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=sha256:$IMAGE
+            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$IMAGE
           done
-
         fi
 
 
