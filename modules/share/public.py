@@ -36,11 +36,11 @@ async def share_togglt_public(update, context):
 
     if public_info["all_recipes"]:
         if public_info["is_public"]:
-            recipe_handler.revoke_all_public(user_id)
+            await recipe_handler.revoke_all_public(user_id)
             user_handler.update_all_recipes_public(user_id, False)
             text = "המתכונים שלך פרטיים עכשיו"
         else:
-            recipe_handler.make_all_public(user_id)
+            await recipe_handler.make_all_public(user_id)
             user_handler.update_all_recipes_public(user_id, True)
             text = "כל המתכונים שלך ציבוריים עכשיו!\n נחמד מצידך 🙂"
 
@@ -48,10 +48,10 @@ async def share_togglt_public(update, context):
 
     else:
         if public_info["is_public"]:
-            recipe_handler.revoke_public(public_info["recipe_id"])
+            await recipe_handler.revoke_public(public_info["recipe_id"])
             text = "המתכון שלך פרטי עכשיו"
         else:
-            recipe_handler.make_public(public_info["recipe_id"])
+            await recipe_handler.make_public(public_info["recipe_id"])
             text = "המתכון שלך ציבורי עכשיו!\n נחמד מצידך 🙂"
 
         await query.edit_message_text(text)

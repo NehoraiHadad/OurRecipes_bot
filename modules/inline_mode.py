@@ -14,7 +14,7 @@ async def inline_query(update, context):
     user_id = str(update.effective_user.id)
 
     # Retrieve matching recipes from database
-    owned_recipes = user_handler.fetch_owned_recipes(user_id)
+    owned_recipes = await user_handler.fetch_owned_recipes(user_id)
 
     matching_recipes_owned = await recipe_handler.search_recipes_by_name(
         owned_recipes, user_query
