@@ -9,7 +9,7 @@ shares_handler = SharesHandler("shares")
 async def update_accessable_recipes(update, context):
     user_id = str(update.effective_user.id)
 
-    all_public_recipes = recipe_handler.fetch_public_recipes()
+    all_public_recipes = await recipe_handler.fetch_public_recipes()
     owned_recipes = await user_handler.fetch_owned_recipes(user_id)
     shared_recipes_info = user_handler.fetch_shared_recipes(user_id)
 

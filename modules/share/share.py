@@ -9,13 +9,11 @@ from modules.dynamoDB import RecipeHandler, SharesHandler, UserHandler
 import uuid
 
 from modules.helpers.buttons import share_buttons_link_or_public, cancel_button
+from modules.helpers.txt import txt_share_all
 
 user_handler = UserHandler("users")
 recipe_handler = RecipeHandler("recipes")
 shares_handler = SharesHandler("shares")
-
-
-txt_share_all = "share-all"
 
 
 async def generate_text_for_share(
