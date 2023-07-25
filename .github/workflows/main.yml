@@ -89,12 +89,13 @@ jobs:
           # Get a list of images to delete (all images except the last two)
           DELETE_IMAGES=$(echo $IMAGES | jq '. | .[0: -2]')
           echo "DELETE_IMAGES: $DELETE_IMAGES"
-
+          
           # Loop through the images to delete
           for IMAGE in $(echo "${DELETE_IMAGES}" | jq -r '.[]'); do
             # Delete the image
-            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$IMAGE
+            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=sha256:$IMAGE
           done
+
         fi
 
 
