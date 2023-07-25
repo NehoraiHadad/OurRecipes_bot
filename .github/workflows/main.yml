@@ -77,7 +77,7 @@ jobs:
           ECR_REPOSITORY: our_recipes_bot
       run: |
         # Get a sorted list of images based on push time
-        IMAGES=$(aws ecr describe-images --repository-name $ECR_REPOSITORY --query 'sort_by(imageDetails,&imagePushedAt)[*].imageTags[0]' --output json)
+        IMAGES=$(aws ecr describe-images --repository-name $ECR_REPOSITORY --query 'sort_by(imageDetails,&imagePushedAt)[*].imageDigest' --output json)
         echo "IMAGES: $IMAGES"
 
         # Get the number of images
@@ -93,7 +93,8 @@ jobs:
           # Loop through the images to delete
           for IMAGE in $(echo "${DELETE_IMAGES}" | jq -r '.[]'); do
             # Delete the image
-            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE
+            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$IMAGE
           done
         fi
+
 
