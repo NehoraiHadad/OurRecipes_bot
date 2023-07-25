@@ -37,7 +37,6 @@ jobs:
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
     - name: Deploy to AWS EC2
       uses: appleboy/ssh-action@master
       env:
@@ -58,7 +57,6 @@ jobs:
             sudo docker stop $CONTAINER_ID
           fi          
           sudo docker run -d --rm -e TELEGRAM_API_TOKEN=${{ env.TELEGRAM_API_TOKEN }} -v ~/.aws:/root/.aws -p 80:8080 ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-
     - name: Delete old images and containers
       uses: appleboy/ssh-action@master
       with:
@@ -70,7 +68,6 @@ jobs:
           sudo docker container prune -f
           # Delete all images except the one tagged as latest
           sudo docker images | grep -v 'latest' | awk '$3 ~ /^[a-f0-9]{12}$/ { print $3 }' | xargs sudo docker rmi -f
-          
     - name: Delete old images from ECR
       env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -96,7 +93,4 @@ jobs:
               aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$IMAGE
             done
           fi
-
-        fi
-
 
