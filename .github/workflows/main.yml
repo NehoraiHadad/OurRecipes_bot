@@ -76,25 +76,27 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: our_recipes_bot
       run: |
-        # Get a sorted list of images based on push time
-        IMAGES=$(aws ecr describe-images --repository-name $ECR_REPOSITORY --query 'sort_by(imageDetails,&imagePushedAt)[*].imageDigest' --output json)
-        echo "IMAGES: $IMAGES"
+          # Get a sorted list of images based on push time
+          IMAGES=$(aws ecr describe-images --repository-name $ECR_REPOSITORY --query 'sort_by(imageDetails,&imagePushedAt)[*].imageDigest' --output json)
+          echo "IMAGES: $IMAGES"
 
-        # Get the number of images
-        COUNT=$(echo $IMAGES | jq '. | length')
-        echo "COUNT: $COUNT"
+          # Get the number of images
+          COUNT=$(echo $IMAGES | jq '. | length')
+          echo "COUNT: $COUNT"
 
-        # If there are more than 2 images
-        if [ $COUNT -gt 2 ]; then
-          # Get a list of images to delete (all images except the last two)
-          DELETE_IMAGES=$(echo $IMAGES | jq '. | .[0: -2]')
-          echo "DELETE_IMAGES: $DELETE_IMAGES"
-          
-          # Loop through the images to delete
-          for IMAGE in $(echo "${DELETE_IMAGES}" | jq -r '.[]'); do
-            # Delete the image
-            aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$IMAGE
-          done
+          # If there are more than 2 images
+          if [ $COUNT -gt 2 ]; then
+            # Get a list of images to delete (all images except the last two)
+            DELETE_IMAGES=$(echo $IMAGES | jq '. | .[0: -2]')
+            echo "DELETE_IMAGES: $DELETE_IMAGES"
+
+            # Loop through the images to delete
+            for IMAGE in $(echo "${DELETE_IMAGES}" | jq -r '.[]'); do
+              # Delete the image
+              aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageDigest=$IMAGE
+            done
+          fi
+
         fi
 
 
