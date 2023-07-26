@@ -33,7 +33,8 @@ class UserHandler(DynamoDBHandler):
                 existing_user["shared_recipes"] = existing_user.get(
                     "shared_recipes", []
                 )
-                existing_user["shared_recipes"].append(shared_recipes)
+                if shared_recipes not in existing_user["shared_recipes"]:
+                    existing_user["shared_recipes"].append(shared_recipes)
             existing_user["last_seen"] = date_string
             response = self.table.put_item(Item=existing_user)
             return response
@@ -46,8 +47,7 @@ class UserHandler(DynamoDBHandler):
                 "all_recipes_public": False,
             }
             if shared_recipes:
-                item["shared_recipes"] = []
-                item["shared_recipes"].add(shared_recipes)
+                item["shared_recipes"] = [shared_recipes]
 
             response = self.table.put_item(Item=item)
 
