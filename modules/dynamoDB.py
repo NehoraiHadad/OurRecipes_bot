@@ -33,7 +33,8 @@ class UserHandler(DynamoDBHandler):
                 existing_user["shared_recipes"] = existing_user.get(
                     "shared_recipes", []
                 )
-                existing_user["shared_recipes"].append(shared_recipes)
+                if shared_recipes not in existing_user["shared_recipes"]:
+                    existing_user["shared_recipes"].append(shared_recipes)
             existing_user["last_seen"] = date_string
             response = self.table.put_item(Item=existing_user)
             return response
@@ -46,8 +47,7 @@ class UserHandler(DynamoDBHandler):
                 "all_recipes_public": False,
             }
             if shared_recipes:
-                item["shared_recipes"] = []
-                item["shared_recipes"].add(shared_recipes)
+                item["shared_recipes"] = [shared_recipes]
 
             response = self.table.put_item(Item=item)
 
@@ -65,12 +65,16 @@ class UserHandler(DynamoDBHandler):
         )
         return response["Attributes"]
 
-    def fetch_owned_recipes(self, user_id: str) -> list[str]:
-        response = self.table.get_item(Key={"user_id": user_id})
+    async def fetch_owned_recipes(self, user_id: str) -> list[str]:
+        response = await asyncio.to_thread(
+            self.table.get_item,
+            Key={"user_id": user_id}
+        )
         item = response.get("Item", {})
         owned_recipes = item.get("owned_recipes", [])
 
         return owned_recipes
+
 
     def fetch_shared_recipes(self, user_id: str) -> list[str]:
         response = self.table.get_item(Key={"user_id": user_id})
@@ -242,34 +246,36 @@ class RecipeHandler(DynamoDBHandler):
 
         return matching_recipes
 
-    def make_public(self, recipe_id: str) -> None:
-        self.table.update_item(
-            Key={"recipe_id": recipe_id},
-            UpdateExpression="set is_public = :t",
-            ExpressionAttributeValues={":t": True},
-        )
+    async def make_public(self, recipe_id: str) -> None:
+            await asyncio.to_thread(
+                self.table.update_item,
+                Key={"recipe_id": recipe_id},
+                UpdateExpression="set is_public = :t",
+                ExpressionAttributeValues={":t": True},
+            )
 
-    def make_all_public(self, user_id: str) -> None:
+    async def make_all_public(self, user_id: str) -> None:
         User_handler = UserHandler("users")
-        user_recipes = User_handler.fetch_owned_recipes(user_id)
-        for recipe in user_recipes:
-            self.make_public(recipe)
+        user_recipes = await User_handler.fetch_owned_recipes(user_id)
+        tasks = [self.make_public(recipe) for recipe in user_recipes]
+        await asyncio.gather(*tasks)
 
-    def revoke_public(self, recipe_id: str) -> None:
-        self.table.update_item(
+    async def revoke_public(self, recipe_id: str) -> None:
+        await asyncio.to_thread(
+            self.table.update_item,
             Key={"recipe_id": recipe_id},
             UpdateExpression="set is_public = :t",
             ExpressionAttributeValues={":t": False},
         )
 
-    def revoke_all_public(self, user_id: str) -> None:
+    async def revoke_all_public(self, user_id: str) -> None:
         User_handler = UserHandler("users")
-        user_recipes = User_handler.fetch_owned_recipes(user_id)
-        for recipe in user_recipes:
-            self.revoke_public(recipe)
+        user_recipes = await User_handler.fetch_owned_recipes(user_id)
+        tasks = [self.revoke_public(recipe) for recipe in user_recipes]
+        await asyncio.gather(*tasks)
 
-    def fetch_public_recipes(self) -> List[Dict[str, Any]]:
-        response = self.table.scan()
+    async def fetch_public_recipes(self) -> List[Dict[str, Any]]:
+        response = await asyncio.to_thread(self.table.scan)
         public_recipes = [
             item for item in response["Items"] if item.get("is_public", False)
         ]
