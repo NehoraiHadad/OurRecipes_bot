@@ -6,6 +6,7 @@ from modules.helpers.buttons import init_buttons
 user_handler = UserHandler("users")
 shares_handler = SharesHandler("shares")
 
+
 async def start(update, context):
     user_id = str(update.effective_user.id)
     username = update.effective_user.first_name
@@ -29,9 +30,12 @@ async def start(update, context):
                 else "שותפת עם מלא מתכונים!"
             )
 
-    response = user_handler.register_user(
-        user_id, username, shared_recipes=unique_id if unique_id else None
-    )
+    try:
+        response = user_handler.register_user(
+            user_id, username, shared_recipes=unique_id if unique_id else None
+        )
+    except Exception as e:
+        response = None
 
     if response:
         await context.bot.send_message(

@@ -21,7 +21,11 @@ class UserHandler(DynamoDBHandler):
     def register_user(
         self, user_id: str, username: str, shared_recipes: Optional[str]
     ) -> Dict[str, Any]:
-        existing_user = self.table.get_item(Key={"user_id": user_id})
+        try:
+            existing_user = self.table.get_item(Key={"user_id": user_id})
+        except botocore.exceptions.ClientError as e:
+            error_message = e.response['Error']['Message']
+            print (error_message)
         current_date = datetime.datetime.now()
         date_format = "%Y-%m-%d %H:%M:%S"
         date_string = current_date.strftime(date_format)
